@@ -1,2 +1,1 @@
--keepclassmembers class ae.majlis.tv.Bridge { @android.webkit.JavascriptInterface <methods>; }
--keepattributes JavascriptInterface
+# Native Compose UI: no reflection-based bridges.

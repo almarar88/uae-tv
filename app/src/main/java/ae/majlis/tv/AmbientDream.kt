@@ -1,40 +1,77 @@
 package ae.majlis.tv
 
-import android.annotation.SuppressLint
 import android.service.dreams.DreamService
-import android.webkit.WebView
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.savedstate.SavedStateRegistry
+import androidx.savedstate.SavedStateRegistryController
+import androidx.savedstate.SavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.Text
+import ae.majlis.tv.data.*
+import ae.majlis.tv.ui.*
+import kotlinx.coroutines.delay
 
-/** System screensaver: shows the ambient page (photo slideshow, clock, dates, next prayer). */
-class AmbientDream : DreamService() {
-    private var web: WebView? = null
-    @SuppressLint("SetJavaScriptEnabled")
+/** System screensaver in Compose: credited UAE photo (changes every 2 min, slow crossfade), clock, both dates, next prayer, verse of the day. */
+class AmbientDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
+    private val reg = LifecycleRegistry(this)
+    private val ssc = SavedStateRegistryController.create(this)
+    override val lifecycle: Lifecycle get() = reg
+    override val savedStateRegistry: SavedStateRegistry get() = ssc.savedStateRegistry
+
+    override fun onCreate() { super.onCreate(); ssc.performRestore(null); reg.currentState = Lifecycle.State.CREATED }
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         isInteractive = false; isFullscreen = true; isScreenBright = false
-        val w = WebView(this)
-        w.setBackgroundColor(0xFF000000.toInt())
-        w.settings.javaScriptEnabled = true
-        w.settings.domStorageEnabled = true
-        w.settings.useWideViewPort = true
-        w.settings.loadWithOverviewMode = true
-        w.addJavascriptInterface(DreamBridge(this), "Android")
-        w.loadUrl("file:///android_asset/web/index.html#ambient")
-        setContentView(w); web = w
+        val v = ComposeView(this)
+        window.decorView.setViewTreeLifecycleOwner(this); window.decorView.setViewTreeSavedStateRegistryOwner(this)
+        v.setViewTreeLifecycleOwner(this); v.setViewTreeSavedStateRegistryOwner(this)
+        v.setContent { Ambient() }
+        setContentView(v)
     }
-    override fun onDetachedFromWindow() { web?.destroy(); web = null; super.onDetachedFromWindow() }
-}
+    override fun onDreamingStarted() { super.onDreamingStarted(); reg.currentState = Lifecycle.State.RESUMED }
+    override fun onDreamingStopped() { reg.currentState = Lifecycle.State.CREATED; super.onDreamingStopped() }
+    override fun onDetachedFromWindow() { reg.currentState = Lifecycle.State.DESTROYED; super.onDetachedFromWindow() }
 
-/** Minimal read-only bridge for the dream (no app launching or AI). */
-class DreamBridge(private val s: DreamService) {
-    @android.webkit.JavascriptInterface fun prefs(): String = Store.all(s).toString()
-    @android.webkit.JavascriptInterface fun prayer(cityId: String, y: Int, m: Int, d: Int): String =
-        org.json.JSONArray(PrayerCalc.compute(Cities.byId(cityId), y, m, d).toList()).toString()
-    @android.webkit.JavascriptInterface fun cities(): String = org.json.JSONArray(Cities.all.map { org.json.JSONObject().put("id", it.id).put("ar", it.ar).put("lat", it.lat).put("lng", it.lng) }).toString()
-    @android.webkit.JavascriptInterface fun hijri(epoch: Double): String {
-        val cal = android.icu.util.IslamicCalendar(android.icu.util.TimeZone.getTimeZone("Asia/Dubai"), android.icu.util.ULocale("ar"))
-        cal.calculationType = android.icu.util.IslamicCalendar.CalculationType.ISLAMIC_UMALQURA
-        cal.timeInMillis = epoch.toLong()
-        return org.json.JSONObject().put("d", cal.get(android.icu.util.Calendar.DAY_OF_MONTH)).put("m", cal.get(android.icu.util.Calendar.MONTH) + 1).put("y", cal.get(android.icu.util.Calendar.YEAR)).toString()
+    @Composable
+    private fun Ambient() {
+        val c = this
+        val photos = remember { Photos.all(c) }
+        var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+        LaunchedEffect(Unit) { while (true) { delay(60_000L - System.currentTimeMillis() % 60_000L + 50); now = System.currentTimeMillis() } }
+        val idx = ((now / 120_000L) % photos.size).toInt()
+        val city = Cities.byId(Store.get(c, "city", "abudhabi"))
+        val np = remember(now) { try { val p = Fmt.parts(now); val d = PrayerCalc.compute(city, p.y, p.m, p.d)
+            (0 until 6).firstOrNull { it != 1 && d[it] > now }?.let { it to d[it] } ?: run { val t = Fmt.parts(now + 86_400_000L); 0 to PrayerCalc.compute(city, t.y, t.m, t.d)[0] } } catch (_: Exception) { null } }
+        var vod by remember { mutableStateOf<Pair<Poet, VerseOfDay>?>(null) }
+        LaunchedEffect(Unit) { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { val p = PoetryRepo.load(c); PoetryRepo.verseOfDay(p)?.let { vod = p[it.poet] to it } } }
+        AlcodeTheme {
+            Box(Modifier.fillMaxSize().background(C.Bg)) {
+                Crossfade(photos[idx], animationSpec = tween(2500), label = "photo") { ph -> Img(ph.uri, 960.dp, 540.dp, Modifier.fillMaxSize()) }
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to C.Bg.copy(alpha = .1f), .55f to C.Bg.copy(alpha = .25f), 1f to C.Bg.copy(alpha = .92f))))
+                Column(Modifier.align(Alignment.BottomStart).padding(horizontal = SafeH, vertical = SafeV)) {
+                    Text(Fmt.time(c, now, ampm = false), style = MaterialTheme.typography.displayLarge, color = C.Text)
+                    Text("${Fmt.gregLine(now)} · ${Fmt.hijriLine(now)}", style = MaterialTheme.typography.titleMedium, color = C.Sand)
+                    np?.let { (i, t) -> Text("${Fmt.PNAMES[i]} ${Fmt.time(c, t)} — ${Fmt.until(t - now)}", style = MaterialTheme.typography.titleSmall, color = C.Gold) }
+                    vod?.let { (poet, v) -> Spacer(Modifier.height(14.dp)); Sadu(); Spacer(Modifier.height(8.dp))
+                        Box(Modifier.width(620.dp)) { Column { v.lines.forEach { Bayt(it, MaterialTheme.typography.bodyLarge) }; Text(poet.name, style = MaterialTheme.typography.labelMedium, color = C.Dim) } } }
+                }
+                Text(photos[idx].let { "${it.ar} — ${it.artist} · ${it.license}" }, style = MaterialTheme.typography.labelSmall, color = C.Dim,
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(horizontal = SafeH, vertical = SafeV))
+            }
+        }
     }
-    @android.webkit.JavascriptInterface fun isDream(): Boolean = true
 }

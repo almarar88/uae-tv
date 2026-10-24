@@ -74,7 +74,7 @@ class AdhanReceiver : BroadcastReceiver() {
         // ignore stale alarms (e.g. delivered >15 min late after the device slept)
         if (idx >= 0 && Math.abs(System.currentTimeMillis() - at) < 15 * 60_000) {
             Adhan.notify(c, idx)
-            MainActivity.instance?.runOnUiThread { MainActivity.instance?.js("window.onAdhan&&onAdhan($idx)") }
+            MainActivity.onAdhan?.invoke(idx)
         }
         Adhan.scheduleNext(c)
     }

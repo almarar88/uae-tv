@@ -1,0 +1,17 @@
+# Hand-written Baseline Profile (no macrobenchmark device run). Startup + Home scroll paths.
+HSPLae/majlis/tv/MainActivity;->**(**)**
+HSPLae/majlis/tv/ui/**;->**(**)**
+Lae/majlis/tv/ui/**;
+HSPLae/majlis/tv/data/**;->**(**)**
+Lae/majlis/tv/data/**;
+HSPLae/majlis/tv/PrayerCalc;->**(**)**
+HSPLae/majlis/tv/Cities;->**(**)**
+HSPLae/majlis/tv/Store;->**(**)**
+HSPLandroidx/compose/runtime/**;->**(**)**
+HSPLandroidx/compose/ui/**;->**(**)**
+HSPLandroidx/compose/foundation/**;->**(**)**
+HSPLandroidx/compose/animation/**;->**(**)**
+HSPLandroidx/tv/material3/**;->**(**)**
+HSPLcoil/**;->**(**)**
+Landroidx/compose/**;
+Landroidx/tv/material3/**;
