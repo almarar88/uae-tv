@@ -47,14 +47,15 @@ class Bridge(private val act: Activity, private val js: (String) -> Unit) {
             for (ri in pm.queryIntentActivities(i, 0)) {
                 val pkg = ri.activityInfo.packageName
                 if (pkg == c.packageName || !seen.add(pkg)) continue
-                val ic = ri.loadIcon(pm)
-                val banner = bannerFor(pm, ri, pkg)
+                val ic = hiResIcon(pm, ri) ?: ri.loadIcon(pm)
+                val banner = bannerFor(pm, ri, pkg)?.takeIf { goodBanner(it) }
                 val (c1, c2) = tint(ic)
                 val adaptive = if (banner == null) adaptiveArt(ic) else null
                 out.put(JSONObject().put("pkg", pkg).put("label", ri.loadLabel(pm).toString())
                     .put("icon", png(ic, 192, 192)).put("c1", c1).put("c2", c2)
-                    .put("banner", banner?.let { png(it, 480, 270) } ?: "")
+                    .put("banner", banner?.let { png(it, 960, 540) } ?: "")
                     .put("art", adaptive ?: "")
+                    .put("sys", (ri.activityInfo.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0)
                     .put("tv", cat == Intent.CATEGORY_LEANBACK_LAUNCHER))
             }
         }
@@ -67,20 +68,55 @@ class Bridge(private val act: Activity, private val js: (String) -> Unit) {
             ?: pm.getApplicationBanner(pkg)
             ?: pm.getLeanbackLaunchIntentForPackage(pkg)?.let { pm.getActivityBanner(it) }
     } catch (_: Exception) { null }
-    /** Adaptive icon → 16:9 tile: background layer stretched full-bleed, foreground layer large and centred. */
+    /** XXXHDPI icon straight from the app's resources, so nothing is upscaled. */
+    private fun hiResIcon(pm: PackageManager, ri: android.content.pm.ResolveInfo): Drawable? = try {
+        val ai = ri.activityInfo; val res = pm.getResourcesForApplication(ai.applicationInfo)
+        val id = if (ai.icon != 0) ai.icon else ai.applicationInfo.icon
+        if (id == 0) null else res.getDrawableForDensity(id, android.util.DisplayMetrics.DENSITY_XXXHIGH, null)
+    } catch (_: Exception) { null }
+    /** A banner counts only if it is real 16:9 artwork (>= 320x180) and not an icon pasted on flat grey. */
+    private fun goodBanner(d: Drawable): Boolean = try {
+        if (d.intrinsicWidth in 1..319 || d.intrinsicHeight in 1..179) false else {
+            val b = Bitmap.createBitmap(96, 54, Bitmap.Config.ARGB_8888); d.setBounds(0, 0, 96, 54); d.draw(Canvas(b))
+            var grey = 0; val hsv = FloatArray(3)
+            for (y in 0 until 54) for (x in 0 until 96) { android.graphics.Color.colorToHSV(b.getPixel(x, y), hsv); if (hsv[1] < .08f && hsv[2] in 0.25f..0.85f) grey++ }
+            grey < 96 * 54 * 0.6
+        }
+    } catch (_: Exception) { true }
+    /** Adaptive icon → 16:9 tile at 960x540: solid brand background, foreground logo ~55% of the width, no box-in-a-box. */
     private fun adaptiveArt(d: Drawable): String? {
         if (Build.VERSION.SDK_INT < 26 || d !is android.graphics.drawable.AdaptiveIconDrawable) return null
         return try {
-            val w = 480; val h = 270
+            val w = 960; val h = 540
             val b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888); val cv = Canvas(b)
-            d.background?.let { bg ->  // sample bg as a square, then scale to fill the wide tile
-                val sq = Bitmap.createBitmap(108, 108, Bitmap.Config.ARGB_8888); bg.setBounds(0, 0, 108, 108); bg.draw(Canvas(sq))
+            d.background?.let { bg ->
+                val sq = Bitmap.createBitmap(216, 216, Bitmap.Config.ARGB_8888); bg.setBounds(0, 0, 216, 216); bg.draw(Canvas(sq))
                 cv.drawBitmap(sq, null, android.graphics.Rect(0, 0, w, h), android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG))
             }
-            d.foreground?.let { fg -> val s = (h * 1.5).toInt(); val l = (w - s) / 2; val t = (h - s) / 2; fg.setBounds(l, t, l + s, t + s); fg.draw(cv) }
+            // the logo lives in the central 72/108 of the layer; size the layer so that zone ≈ 55% of the tile width
+            d.foreground?.let { fg -> val s = (w * 0.55 * 108 / 72).toInt(); val l = (w - s) / 2; val t = (h - s) / 2; fg.setBounds(l, t, l + s, t + s); fg.draw(cv) }
             val bo = ByteArrayOutputStream(); b.compress(Bitmap.CompressFormat.PNG, 100, bo)
             "data:image/png;base64," + Base64.encodeToString(bo.toByteArray(), Base64.NO_WRAP)
         } catch (_: Exception) { null }
+    }
+    /** Official hi-res icon from the app's Google Play listing (og:image, requested at 1024px), cached on disk.
+     *  Returns the raw icon as a data URL; the web layer composes the tvOS tile from it. */
+    @JavascriptInterface fun playIcon(id: String, pkg: String) = async(id) {
+        require(Regex("^[A-Za-z0-9_.]+$").matches(pkg))
+        val dir = File(c.cacheDir, "playicons").apply { mkdirs() }; val f = File(dir, "$pkg.png")
+        if (!f.exists() || System.currentTimeMillis() - f.lastModified() > 30L * 86400000) {
+            // TV builds often have their own id with no listing; try the phone listing of the same app too
+            val ids = linkedSetOf(pkg, pkg.removeSuffix(".tv"), pkg.removeSuffix(".androidtv"), pkg.removeSuffix(".tv.android"), pkg.removeSuffix(".livingroom"))
+            val html = ids.asSequence().map { Http.request("https://play.google.com/store/apps/details?id=$it&hl=en", headers = mapOf("Accept" to "text/html")) }
+                .firstOrNull { it.first == 200 }?.second ?: throw RuntimeException("no listing")
+            val m = Regex("<meta property=\"og:image\" content=\"(https://play-lh\\.googleusercontent\\.com/[^\"=]+)").find(html) ?: throw RuntimeException("no icon")
+            val con = java.net.URL(m.groupValues[1] + "=s1024").openConnection() as java.net.HttpURLConnection
+            val bytes = con.inputStream.use { it.readBytes() }; con.disconnect()
+            val bmp = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: throw RuntimeException("bad image")
+            if (bmp.width < 512) throw RuntimeException("low-res")
+            f.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        }
+        "data:image/png;base64," + Base64.encodeToString(f.readBytes(), Base64.NO_WRAP)
     }
     /** Dominant / vibrant colours of the icon (AndroidX Palette) → tvOS-style tile gradient. */
     private fun tint(d: Drawable): Pair<String, String> = try {

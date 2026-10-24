@@ -57,9 +57,12 @@ function nextPrayer() {
   for (let i = 0; i < 6; i++) if (i !== 1 && today[i] > now) return { i, t: today[i], today };
   const tm = prayerDay(now + 86400e3); return { i: 0, t: tm[0], today };
 }
+// Arabic counted nouns: 1 واحد, 2 dual, 3–10 plural, 11+ singular accusative/genitive form
+const arCount = (n, one, two, few, many) => n === 1 ? one : n === 2 ? two : n >= 3 && n <= 10 ? `${n} ${few}` : `${n} ${many}`;
+const MIN_W = n => arCount(n, 'دقيقة', 'دقيقتين', 'دقائق', 'دقيقة'), HR_W = n => arCount(n, 'ساعة', 'ساعتين', 'ساعات', 'ساعة');
 function untilText(ms) {
   const m = Math.max(0, Math.round(ms / 60000)), h = Math.floor(m / 60), r = m % 60;
-  if (h && r) return `بعد ${h} س و${r} د`; if (h) return `بعد ${h} ساعة`; return `بعد ${r} دقيقة`;
+  if (h && r) return `بعد ${h} س و${r} د`; if (h) return `بعد ${HR_W(h)}`; return r ? `بعد ${MIN_W(r)}` : 'الآن';
 }
 
 /* ── backgrounds ────────────────────────────────────────── */
@@ -90,7 +93,7 @@ function tick() {
     $('#nextIn').textContent = untilText(np.t - now);
     $('#amPrayer').textContent = `${PNAMES[np.i]} ${fmtTime(np.t)} — ${untilText(np.t - now)}`;
     $('#pList').innerHTML = np.today.map((t, i) => `<div class="${i === np.i && np.t === t ? 'next' : ''}">${PNAMES[i]}<b>${fmtTime(t, false)}</b></div>`).join('');
-  } catch (e) { }
+  } catch { }
 }
 
 /* ── weather (Open-Meteo, CC BY 4.0) ────────────────────── */
@@ -107,7 +110,7 @@ async function loadWeather() {
 }
 function renderWeather() {
   const c = city(); $('#wxCity').textContent = c.ar; $('#wCity').textContent = c.ar;
-  if (!WX) { $('#wxDesc').textContent = 'الطقس غير متاح'; return; }
+  if (!WX) { $('#wxTemp').textContent = ''; $('#wxDesc').textContent = 'الطقس غير متاح'; window.onWeather && onWeather(); return; }
   const cu = WX.current, [d, ic] = wmo(cu.weather_code);
   $('#wxTemp').textContent = ic + ' ' + Math.round(cu.temperature_2m) + '°';
   $('#wxDesc').innerHTML = esc(d) + ' · رطوبة <bdi>' + cu.relative_humidity_2m + '%</bdi>';
@@ -182,16 +185,103 @@ function tintFallback(a) { // JS dominant colour when the bridge did not supply 
 const hex = c => '#' + c.map(v => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join('');
 const shade = (h, f) => { const n = parseInt(h.slice(1), 16); return hex([n >> 16, (n >> 8) & 255, n & 255].map(v => Math.round(v * f))); };
 function artStyle(c1, c2) { c2 = c2 || shade(c1, .55); return `--c1:${c1};--c2:${c2}`; }
-function tileHTML(a) {
-  const k = esc(a.pkg);
-  const full = a.banner || a.art; // app's own TV banner, else its adaptive icon composed full-bleed natively
-  if (full) return `<div class="tv" data-f data-pkg="${k}" tabindex="-1"><div class="art banner"><img src="${full}"><i class="gloss"></i></div><span class="lbl">${esc(a.label)}</span></div>`;
-  const c1 = a.c1 || TINT[a.pkg] && TINT[a.pkg][0], c2 = a.c2 || TINT[a.pkg] && TINT[a.pkg][1];
-  return `<div class="tv" data-f data-pkg="${k}" tabindex="-1"><div class="art icon"${c1 ? ` style="${artStyle(c1, c2)}"` : ''}><img src="${a.icon}"><i class="gloss"></i></div><span class="lbl">${esc(a.label)}</span></div>`;
+// ── tvOS-style app tiles ─────────────────────────────────────────────────────────────
+// Source priority: the app's own good TV banner → its official Play icon (fetched at runtime, cached on device) composed onto
+// its own brand colour → its adaptive icon rendered natively at XXXHDPI → its hi-res legacy icon composed the same way → initials.
+const SYS_SETTINGS = /^com\.(android|google\.android)\.(tv\.)?settings$/;
+const TW = 640, TH = 360; // composed canvas; ≥ the tile's on-screen size at 4K scale so nothing is upscaled on display
+const GEAR = (() => { // finely detailed vector gear: 14 rounded teeth, machined inner ring, hub with 6 spokes
+  const n = 14, R = 92, r = 74, p = []; for (let i = 0; i < n; i++) { const a0 = (i / n) * 2 * Math.PI, w = Math.PI / n;
+    [[a0 - w * .62, r], [a0 - w * .42, R], [a0 + w * .42, R], [a0 + w * .62, r]].forEach(([a, rr], j) => p.push(`${i || j ? 'L' : 'M'}${(100 + rr * Math.cos(a)).toFixed(2)} ${(100 + rr * Math.sin(a)).toFixed(2)}`)); }
+  const sp = [0, 1, 2, 3, 4, 5].map(i => { const a = i * Math.PI / 3 + Math.PI / 6; return `<rect x="96.5" y="38" width="7" height="30" rx="3.5" transform="rotate(${(a * 180 / Math.PI).toFixed(1)} 100 100)" fill="url(#gs)"/>`; }).join('');
+  return `<svg class="gear" viewBox="0 0 200 200" aria-hidden="true"><defs><linearGradient id="gm" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f5f7"/><stop offset=".55" stop-color="#b9bdc4"/><stop offset="1" stop-color="#8b9098"/></linearGradient>
+<linearGradient id="gs" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d9dce1"/><stop offset="1" stop-color="#9a9fa7"/></linearGradient></defs>
+<path d="${p.join('')}Z M100 40a60 60 0 1 0 .01 0Z" fill="url(#gm)" fill-rule="evenodd" stroke="rgba(255,255,255,.55)" stroke-width=".8"/>
+<circle cx="100" cy="100" r="60" fill="none" stroke="rgba(0,0,0,.28)" stroke-width="1.2"/><circle cx="100" cy="100" r="52" fill="none" stroke="url(#gs)" stroke-width="5"/>${sp}
+<circle cx="100" cy="100" r="22" fill="url(#gm)" stroke="rgba(0,0,0,.25)" stroke-width="1"/><circle cx="100" cy="100" r="9" fill="#5f646c"/></svg>`;
+})();
+function loadImg(src) { return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; }); }
+// Places an icon's logo on its own background colour, tvOS style. Returns a data URL or null if the icon is unusable.
+async function composeTile(src, minSide) {
+  let im; try { im = await loadImg(src); } catch { return null; }
+  const S = Math.min(im.naturalWidth, im.naturalHeight); if (!S || S < minSide) return null;
+  const cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d', { willReadFrequently: true }); g.drawImage(im, 0, 0, S, S);
+  const d = g.getImageData(0, 0, S, S).data, at = (x, y) => (y * S + x) * 4;
+  // background model: per-channel median of each corner region of an inset edge ring → bilinear field (handles flat and gradient icons)
+  const m = Math.round(S * .05), q = Math.round(S * .3), med = a => { const r = [0, 1, 2].map(k => a.map(c => c[k]).sort((x, y) => x - y)[a.length >> 1]); return r; };
+  const corner = (cx, cy) => { const a = []; for (let t = m; t < q; t += 2) for (const [x, y] of [[cx ? S - 1 - t : t, cy ? S - 1 - m : m], [cx ? S - 1 - m : m, cy ? S - 1 - t : t]]) { const i = at(x, y); if (d[i + 3] > 200) a.push([d[i], d[i + 1], d[i + 2]]); } return a.length > 8 ? med(a) : null; };
+  const C = [corner(0, 0), corner(1, 0), corner(0, 1), corner(1, 1)]; if (C.some(c => !c)) return null; // transparent legacy icon, no background of its own
+  const bgAt = (x, y) => { const u = x / S, v = y / S; return [0, 1, 2].map(k => (C[0][k] * (1 - u) + C[1][k] * u) * (1 - v) + (C[2][k] * (1 - u) + C[3][k] * u) * v); };
+  let x0 = S, y0 = S, x1 = -1, y1 = -1; const st = Math.max(1, S >> 8);
+  for (let y = m; y < S - m; y += st) for (let x = m; x < S - m; x += st) { const i = at(x, y), b = bgAt(x, y); if (d[i + 3] > 128 && Math.abs(d[i] - b[0]) + Math.abs(d[i + 1] - b[1]) + Math.abs(d[i + 2] - b[2]) > 70) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } }
+  if (x1 <= x0 || y1 <= y0) return null;
+  const out = document.createElement('canvas'); out.width = TW; out.height = TH; const o = out.getContext('2d'); o.imageSmoothingQuality = 'high';
+  // 2×2 corner swatch stretched with smoothing = a smooth bilinear brand field across the whole tile
+  const sw = document.createElement('canvas'); sw.width = sw.height = 2; const sg = sw.getContext('2d'); const id = sg.createImageData(2, 2);
+  C.forEach((c, j) => { id.data.set([c[0], c[1], c[2], 255], j * 4); }); sg.putImageData(id, 0, 0);
+  o.imageSmoothingEnabled = true; o.drawImage(sw, .5, .5, 1, 1, 0, 0, TW, TH);
+  const pd = Math.round(S * .03); x0 = Math.max(0, x0 - pd); y0 = Math.max(0, y0 - pd); x1 = Math.min(S - 1, x1 + pd); y1 = Math.min(S - 1, y1 + pd);
+  // seam check: how far the crop's own border strays from the bilinear field (radial glows, textures)
+  let seam = 0, ns = 0; for (let t = 0; t <= 1; t += .05) for (const [x, y] of [[x0 + (x1 - x0) * t, y0], [x0 + (x1 - x0) * t, y1], [x0, y0 + (y1 - y0) * t], [x1, y0 + (y1 - y0) * t]]) { const xi = Math.round(x), yi = Math.round(y), i = at(xi, yi), b = bgAt(xi, yi); seam += Math.abs(d[i] - b[0]) + Math.abs(d[i + 1] - b[1]) + Math.abs(d[i + 2] - b[2]); ns++; }
+  const spread = Math.max(...[0, 1, 2].map(k => Math.max(...C.map(c => c[k])) - Math.min(...C.map(c => c[k]))));
+  const near = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) < 30;
+  const splitRow = (() => { const x = Math.round(S * .14); let sr = -1; const x2 = Math.round(S * .06); let seen = false; for (let y = m; y < S - m; y++) { const i = at(x2, y); if (d[i + 3] < 200) continue; const c = [d[i], d[i + 1], d[i + 2]]; if (near(c, C[0])) seen = true; else if (seen && near(c, C[2])) { sr = y; break; } }
+    if (sr < 0 || sr + 6 >= S) return -1; const j = at(x2, sr + 6); return near([d[j], d[j + 1], d[j + 2]], C[2]) ? sr : -1; })(); // a hard edge, not a gradient
+  if (spread > 40 && near(C[0], C[1]) && near(C[2], C[3]) && splitRow > 0) { // split-field icon (e.g. white top / brand bottom): split fills, icon art centred
+    const k = Math.round(S * .12), cs = S - 2 * k, sc = Math.min(TH * .88 / cs, 1.25), dw = cs * sc, dh = cs * sc, dx = (TW - dw) / 2, dy = (TH - dh) / 2;
+    // find the icon's actual split row to align the fills exactly
+    const sr = splitRow;
+    const sy = dy + (sr - k) * sc; o.fillStyle = `rgb(${C[0]})`; o.fillRect(0, 0, TW, sy); o.fillStyle = `rgb(${C[2]})`; o.fillRect(0, sy, TW, TH - sy);
+    o.drawImage(cv, k, k, cs, cs, dx, dy, dw, dh);
+    try { return out.toDataURL('image/webp', .92); } catch { return null; }
+  }
+  if (spread > 40) { // gradient or textured artwork: the icon's own art is the field, cover-fitted, logo kept whole and crisp
+    const fits = (y1 - y0) < S * .7, hb = y1 - y0 + 1, sc = fits ? Math.min(TW / S, TH * .9 / hb, TW * .62 / (x1 - x0 + 1), 1.25) : Math.min(TW / S, 1.25), dw = S * sc, dy = fits ? TH / 2 - ((y0 + y1) / 2) * sc : (TH - S * sc) / 2; // glow/gradient bleeds into the bbox → plain centred cover
+    { const av = (a, b) => `rgb(${[0, 1, 2].map(k => Math.round((a[k] + b[k]) / 2)).join(',')})`, gf = o.createLinearGradient(0, 0, 0, TH); gf.addColorStop(0, av(C[0], C[1])); gf.addColorStop(1, av(C[2], C[3])); o.fillStyle = gf; o.fillRect(0, 0, TW, TH); } // clean field from the art's own corner colours — no smeared blur
+    const I = document.createElement('canvas'); I.width = Math.round(dw); I.height = Math.round(S * sc); const ig = I.getContext('2d'); ig.imageSmoothingQuality = 'high'; ig.drawImage(cv, 0, 0, I.width, I.height);
+    if (dw < TW - 1) { ig.globalCompositeOperation = 'destination-in'; const fx = Math.min(.2, 80 / dw), g2 = ig.createLinearGradient(0, 0, I.width, 0); g2.addColorStop(0, 'rgba(0,0,0,0)'); g2.addColorStop(fx, '#000'); g2.addColorStop(1 - fx, '#000'); g2.addColorStop(1, 'rgba(0,0,0,0)'); ig.fillStyle = g2; ig.fillRect(0, 0, I.width, I.height); }
+    o.drawImage(I, Math.round((TW - dw) / 2), Math.round(dy));
+    try { return out.toDataURL('image/webp', .92); } catch { return null; }
+  }
+  const w = x1 - x0 + 1, h = y1 - y0 + 1, sc = Math.min(TW * .55 / w, TH * .66 / h, 1.25); // ≤1.25× even at 4K: no visible softening
+  const lw = Math.round(w * sc), lh = Math.round(h * sc), L = document.createElement('canvas'); L.width = lw; L.height = lh; const lg = L.getContext('2d'); lg.imageSmoothingQuality = 'high';
+  lg.drawImage(cv, x0, y0, w, h, 0, 0, lw, lh);
+  // feather the crop's edges so its own background melts into the field (no visible box)
+  lg.globalCompositeOperation = 'destination-in'; const f = Math.max(4, Math.round(pd * sc));
+  const gx = lg.createLinearGradient(0, 0, lw, 0); gx.addColorStop(0, 'rgba(0,0,0,0)'); gx.addColorStop(f / lw, '#000'); gx.addColorStop(1 - f / lw, '#000'); gx.addColorStop(1, 'rgba(0,0,0,0)'); lg.fillStyle = gx; lg.fillRect(0, 0, lw, lh);
+  const gy = lg.createLinearGradient(0, 0, 0, lh); gy.addColorStop(0, 'rgba(0,0,0,0)'); gy.addColorStop(f / lh, '#000'); gy.addColorStop(1 - f / lh, '#000'); gy.addColorStop(1, 'rgba(0,0,0,0)'); lg.fillStyle = gy; lg.fillRect(0, 0, lw, lh);
+  // place where the logo sat in the icon field, so the field colour under it matches
+  o.drawImage(L, Math.round((TW - lw) / 2), Math.round((TH - lh) / 2));
+  try { return out.toDataURL('image/webp', .92); } catch { return null; }
 }
-async function tintApps() {
-  await Promise.all(APPS.filter(a => !a.banner && !a.art && !a.c1 && !TINT[a.pkg]).map(async a => { const c = await tintFallback(a); if (c) { const h = hex(c); TINT[a.pkg] = [h, shade(h, .5)]; } }));
-  $$('.tv[data-pkg] .art.icon:not([style])').forEach(el => { const t = TINT[el.parentNode.dataset.pkg]; if (t) el.setAttribute('style', artStyle(t[0], t[1])); });
+const TILES = {}; const TILE_V = 't16:';
+function tileArt(a) { // instant, synchronous source for the first paint
+  if (SYS_SETTINGS.test(a.pkg)) return { cls: 'sys', html: GEAR };
+  if (a.banner) return { cls: 'banner', src: a.banner };
+  const c = TILES[a.pkg] || (TILES[a.pkg] = localStorage.getItem(TILE_V + a.pkg)); if (c) return { cls: 'banner', src: c };
+  if (a.art) return { cls: 'banner', src: a.art };
+  return { cls: 'init', html: `<b>${esc(appInitials(a.label))}</b>` };
+}
+function appInitials(l) { const w = String(l || '?').replace(/[^\p{L}\p{N}\s]/gu, '').trim().split(/\s+/); if (/\p{Script=Arabic}/u.test(w[0] || '')) return w[0].length <= 7 ? w[0] : w[0].replace(/^ال/, '').slice(0, 2); return (w.length > 1 ? w[0][0] + w[1][0] : (w[0] || '?').slice(0, 2)).toUpperCase(); }
+function tileHTML(a) {
+  const k = esc(a.pkg), t = tileArt(a);
+  return `<div class="tv" data-f data-pkg="${k}" tabindex="-1"><div class="art ${t.cls}">${t.src ? `<img src="${t.src}" alt="">` : t.html}<i class="gloss"></i></div><span class="lbl">${esc(a.label)}</span></div>`;
+}
+async function upgradeTile(a) {
+  let u = null;
+  try { const p = await call('playIcon', a.pkg); if (p) u = await composeTile(p, 256); } catch { }
+  if (!u && a.art) return; // native adaptive render is already good
+  if (!u && a.icon) u = await composeTile(a.icon, 128); // hi-res legacy icon with its own background
+  if (!u) return; // keep initials — never a blurry upscale
+  TILES[a.pkg] = u; try { localStorage.setItem(TILE_V + a.pkg, u); } catch { }
+  $$(`.tv[data-pkg="${CSS.escape(a.pkg)}"] .art`).forEach(el => { el.className = 'art banner'; el.innerHTML = `<img src="${u}" alt=""><i class="gloss"></i>`; });
+}
+let tilesBusy = false;
+async function tintApps() { // name kept for callers: upgrades tiles that have no banner and no cached composition
+  if (tilesBusy) return; tilesBusy = true;
+  const todo = APPS.filter(a => !a.banner && !SYS_SETTINGS.test(a.pkg) && !TILES[a.pkg] && !localStorage.getItem(TILE_V + a.pkg));
+  for (let i = 0; i < todo.length; i += 4) await Promise.all(todo.slice(i, i + 4).map(upgradeTile));
+  tilesBusy = false;
 }
 async function loadApps() {
   try { APPS = JSON.parse(await call('apps')); } catch { APPS = []; }
@@ -233,6 +323,7 @@ function localSuggest() {
   return APPS.map(a => [a, score(a)]).sort((x, y) => y[1] - x[1]).slice(0, 7).map(x => x[0]);
 }
 const SLOT_AR = ['بعد منتصف الليل', 'الفجر', 'الصباح', 'الضحى', 'الظهيرة', 'العصر', 'المساء', 'الليل'];
+const SUG_WHY = () => `مقترحة حسب استخدامك في وقت ${SLOT_AR[slot()]}`;
 function renderSuggestions(list, why) {
   list = list || localSuggest();
   $('#sugRow').innerHTML = list.length ? list.map(tileHTML).join('') : '<div class="empty">ستظهر هنا اقتراحات حسب استخدامك ووقت اليوم</div>';
@@ -247,10 +338,10 @@ async function aiSuggest() {
   const ctx = { time: fmtTime(Date.now()), weekday: DAYS[uaeParts().wd], slot: SLOT_AR[slot()], nextPrayer: PNAMES[np.i] + ' ' + fmtTime(np.t), football_today: FOOT?.today?.length || 0,
     apps: APPS.slice(0, 60).map(a => ({ pkg: a.pkg, name: a.label, uses_this_slot: U[a.pkg]?.[slot()] || 0, uses_total: U[a.pkg]?.total || 0 })) };
   try {
-    const r = await ai('أنت محرك اقتراحات لتلفزيون منزلي. أعد JSON فقط بالشكل {"p":["package",...],"why":"سبب قصير بالعربية لا يتجاوز 8 كلمات"} واختر 6 تطبيقات من القائمة فقط بناءً على الوقت والاستخدام.', [{ role: 'user', text: JSON.stringify(ctx) }]);
+    const r = await ai('أنت محرك اقتراحات لتلفزيون منزلي. أعد JSON فقط بالشكل {"p":["package",...]} واختر 6 تطبيقات من القائمة فقط بناءً على الوقت والاستخدام.', [{ role: 'user', text: JSON.stringify(ctx) }]);
     const j = JSON.parse(r.replace(/^```(json)?|```$/gm, '').trim());
     const l = (j.p || []).map(p => APPS.find(a => a.pkg === p)).filter(Boolean);
-    if (l.length) { localStorage[key] = JSON.stringify({ p: l.map(a => a.pkg), why: '✦ ' + (j.why || '') }); renderSuggestions(l, '✦ ' + (j.why || '')); }
+    if (l.length) { localStorage[key] = JSON.stringify({ p: l.map(a => a.pkg), why: '✦ ' + SUG_WHY() }); renderSuggestions(l, '✦ ' + SUG_WHY()); }
   } catch (e) { /* keep local suggestions */ }
 }
 
@@ -309,7 +400,7 @@ async function briefing() {
 let SURAS = [], curSura = null, curVerses = [];
 function loadSuras() { SURAS = window.SURAS_DATA || []; }
 function renderSuraGrid() {
-  $('#suraGrid').innerHTML = SURAS.map(s => `<div class="sura" data-f data-sura="${s.n}" tabindex="-1">${s.n}. ${esc(s.name)}<small>${s.type} · ${s.ayas} آية</small></div>`).join('');
+  $('#suraGrid').innerHTML = SURAS.map(s => `<div class="sura" data-f data-sura="${s.n}" tabindex="-1">${s.n}. ${esc(s.name)}<small>${s.type} · ${arCount(s.ayas, "آية واحدة", "آيتان", "آيات", "آية")}</small></div>`).join('');
 }
 const arNum = n => String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
 async function openSura(n) {
@@ -352,7 +443,7 @@ function renderSettings() {
   $('#verInfo').textContent = 'الإصدار ' + A.version();
 }
 function renderCredits() {
-  $('#credBody').innerHTML = `<img src="brand.png" style="height:60px;vertical-align:middle;margin-left:14px"><b>الكود TV</b> (Alcode TV) من مؤسسة الكود — واجهة رئيسية عربية إماراتية لأجهزة Android TV. الكود مفتوح المصدر (MIT).<br><br>
+  $('#credBody').innerHTML = `<img src="brand.png" alt="الكود" style="height:96px;display:block;margin-bottom:24px">من مؤسسة الكود. مفتوح المصدر (MIT).<br><br>
 <b>الصور (Wikimedia Commons):</b><br>${PHOTOS.map(p => `• ${esc(p.ar)} — ${esc(p.artist)} — ${esc(p.license)}`).join('<br>')}<br>(تم قصّها وتصغيرها إلى 1920×1080؛ الروابط الكاملة في CREDITS.md)<br><br>
 <b>نص القرآن الكريم:</b> مشروع تنزيل Tanzil Quran Text (Uthmani) — tanzil.net — يُستخدم دون تعديل وفق شروطه.<br>
 <b>التفسير:</b> التفسير الميسر وتفسير الجلالين عبر واجهة alquran.cloud.<br>
@@ -369,7 +460,7 @@ async function checkUpdate(manual) {
       const b = document.createElement('button'); b.setAttribute('data-f', ''); b.textContent = 'تثبيت التحديث';
       b.onclick = async () => { $('#updMsg').firstChild.textContent = 'جارٍ التنزيل… '; try { const r = await call('installUpdate', u.apk); if (r === 'needs-permission') toast('اسمح بتثبيت التطبيقات من «مجلس» ثم أعد المحاولة'); } catch (e) { toast(e.message); } };
       $('#updMsg').appendChild(b);
-      if (!manual) toast(`يتوفر تحديث لالكود TV (${u.latest}) — من الإعدادات`);
+      if (!manual) toast(`يتوفر تحديث جديد (${u.latest}) — من الإعدادات`);
     } else if (manual) $('#updMsg').textContent = `أنت على آخر إصدار (${u.current})`;
   } catch (e) { if (manual) $('#updMsg').textContent = 'تعذّر التحقق: ' + e.message; }
 }
@@ -492,7 +583,7 @@ function wire() {
 
 /* ── boot ───────────────────────────────────────────────── */
 function boot() {
-  if (!A) { document.body.innerHTML = '<p style="padding:80px;font-size:40px">يعمل داخل تطبيق الكود TV فقط</p>'; return; }
+  if (!A) { document.body.innerHTML = '<p style="padding:80px;font-size:40px">يعمل داخل تطبيق الكود فقط</p>'; return; }
   loadPrefs();
   try { CITIES = JSON.parse(A.cities()); } catch { CITIES = [{ id: 'abudhabi', ar: 'أبوظبي', lat: 24.4539, lng: 54.3773 }]; }
   startBg(); tick(); setInterval(tick, 15000);

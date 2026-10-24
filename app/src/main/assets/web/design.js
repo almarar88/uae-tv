@@ -1,4 +1,4 @@
-/* الكود TV 1.2 — Top Shelf + motion. Transform/opacity only; no per-frame blur. */
+/* الكود 1.2 — Top Shelf + motion. Transform/opacity only; no per-frame blur. */
 'use strict';
 (function shelf() {
   if (IS_DREAM) return;
@@ -7,7 +7,7 @@
   <div id="shBody"><div id="shKick"></div><h1 id="shTitle"></h1><p id="shWhy"></p>
   <div id="shMeta"><span id="shPray"></span><span id="shWx"></span></div>
   <div id="shCtl"><button id="shGo" data-f tabindex="-1">شاهد الآن</button><div id="shDots"></div></div></div>
-  <div id="shClock"><b id="shTime"></b><small id="shDate"></small></div>`;
+  <div id="shClock"><b id="shTime"></b><small id="shDate"></small><em id="shGreet"></em></div>`;
   $('#tabs').after(s);
   let i = 0, ai = 0;
   window.renderShelf = () => {
@@ -38,7 +38,7 @@
     $('#shDate').textContent = dateLines(now).greg;
     try { const np = nextPrayer(), ms = np.t - now, h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60, sec = Math.floor(ms / 1000) % 60;
       $('#shPray').innerHTML = `<i class="ico" style="--ico:url(icons/prayers.svg)"></i>${PNAMES[np.i]} ${fmtTime(np.t)} · <b class="cd">${h ? h + ':' : ''}${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}</b>`; } catch (e) { }
-    $('#shWx').innerHTML = `<i class="ico" style="--ico:url(icons/weather.svg)"></i>${esc($('#wxTemp').textContent)} · ${esc($('#wxDesc').textContent)}`;
+    $('#shWx').innerHTML = `<i class="ico" style="--ico:url(icons/weather.svg)"></i>${[$('#wxTemp').textContent, $('#wxDesc').textContent].filter(Boolean).map(esc).join(' · ')}`;
   };
   clk(); setInterval(clk, 1000);
 })();
@@ -60,7 +60,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Enter' && cur && !e.r
       g.style.opacity = 0; // glow retired in the Liwa Dusk pass
       const px = (r.left + r.width / 2) / innerWidth - .5, py = Math.min(1, r.top / innerHeight);
       document.documentElement.style.setProperty('--px', px.toFixed(3)); document.documentElement.style.setProperty('--py', py.toFixed(3));
-      document.body.classList.toggle('deep', stack.length === 1 && r.top > innerHeight * .55);
+      const sh = document.getElementById('shelf'); document.body.classList.toggle('deep', stack.length === 1 && (r.top > innerHeight * .55 || (sh && sh.getBoundingClientRect().top < -40)));
     }, 60));
   };
 })();

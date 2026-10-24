@@ -36,6 +36,15 @@ class H(http.server.SimpleHTTPRequestHandler):
                 if q['url'] not in cache: cache[q['url']] = urllib.request.urlopen(urllib.request.Request(q['url'], headers=UA), timeout=30).read().decode()
                 return s.send(200, cache[q['url']])
             except Exception as e: return s.send(502, str(e))
+        if u.path == '/__playicon':  # preview only: real Play icon fetched live, never stored in the repo
+            try:
+                import re as _re
+                html = urllib.request.urlopen(urllib.request.Request('https://play.google.com/store/apps/details?id=' + q['pkg'] + '&hl=en', headers=UA), timeout=30).read().decode()
+                m = _re.search(r'<meta property="og:image" content="(https://play-lh\.googleusercontent\.com/[^"=]+)', html)
+                if not m: return s.send(404, 'no icon')
+                data = urllib.request.urlopen(urllib.request.Request(m.group(1) + '=s1024', headers=UA), timeout=30).read()
+                s.send_response(200); s.send_header('Content-Type', 'image/png'); s.send_header('Content-Length', str(len(data))); s.end_headers(); s.wfile.write(data); return
+            except Exception as e: return s.send(502, str(e))
         if u.path == '/__prayer':
             out = subprocess.run(['java', '-jar', JAR, q['city'], q['y'], q['m'], q['d']], capture_output=True, text=True).stdout.strip()
             return s.send(200, out)

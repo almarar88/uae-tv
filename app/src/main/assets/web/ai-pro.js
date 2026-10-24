@@ -1,4 +1,4 @@
-/* الكود TV 1.2 — proactive AI layer. Rules: never invent facts; everything AI-made carries ✦; works offline with local fallbacks. */
+/* الكود 1.2 — proactive AI layer. Rules: never invent facts; everything AI-made carries ✦; works offline with local fallbacks. */
 'use strict';
 const WIKI_TAG = '<span class="aitag wk">ويكيبيديا</span>';
 
@@ -92,7 +92,7 @@ async function renderGroups() {
   CHG = await groupChannels(IP.live);
   const all = dedupe(IP.live), saved = IP.live.length - all.length;
   $('#ipLive').innerHTML = all.slice(0, 20).map(x => ipCard(ipItem('live', x))).join('');
-  const h = $('#rowLive h2'); if (h && saved > 0) h.innerHTML = h.innerHTML.replace(/<small.*$/, '') + ` <small>دُمجت ${saved} نسخة HD/SD</small>`;
+  const h = $('#rowLive h2'); if (h && saved > 0) h.innerHTML = h.innerHTML.replace(/<small.*$/, '') + ` <small>دُمجت ${arCount(saved, "نسخة واحدة", "نسختان", "نسخ", "نسخة")} HD/SD</small>`;
   if ($('#hbRows')) {
     const html = GROUPS.filter(g => CHG[g]).map(g => `<section class="row"><h2>${g} ${CHG[g].ai ? '<span class="aitag">✦ تصنيف ذكي</span>' : ''}</h2><div class="strip">${CHG[g].items.slice(0, 24).map(x => ipCard(ipItem('live', x))).join('')}</div></section>`).join('');
     const live = [...$$('#hbRows .row h2')].find(h => h.textContent.startsWith('القنوات المباشرة')); if (live) live.parentNode.outerHTML = html;
@@ -119,11 +119,11 @@ async function whatToWatch() {
   const c = candidates(); if (!c.length) return;
   const key = 'w2w.' + new Date().toISOString().slice(0, 13); let sel = cache(key);
   if (!sel && aiReady() && online()) {
-    try { const r = await aiJSON(`اختر حتى 4 عناصر من القائمة تناسب المشاهد الآن (الوقت ${new Date().toLocaleTimeString('ar-AE', { hour: '2-digit', minute: '2-digit' })}، ${KIDS() ? 'وضع الأطفال مفعّل' : ''}). اكتب لكل عنصر سبباً عربياً قصيراً (أقل من 9 كلمات) مبنياً فقط على المعلومة المعطاة، دون اختراع حبكة أو حقائق. أعد {"picks":[{"i":رقم,"why":"..."}]}`,
+    try { const r = await aiJSON(`اختر حتى 4 عناصر من القائمة تناسب المشاهد الآن (الوقت ${new Date().toLocaleTimeString('ar-AE', { hour: '2-digit', minute: '2-digit' })}، ${KIDS() ? 'وضع الأطفال مفعّل' : ''}). لا تكتب أي نص. أعد {"picks":[{"i":رقم}]}`,
         c.map((x, i) => `${i}: [${x.type}] ${x.title} — ${x.why}`).join('\n'));
-      sel = (r.picks || []).filter(p => c[p.i]).slice(0, 4).map(p => ({ id: c[p.i].id, why: String(p.why).slice(0, 80) })); if (sel.length) cache(key, sel); } catch (e) { sel = null; }
+      sel = (r.picks || []).filter(p => c[+p.i]).slice(0, 4).map(p => ({ id: c[+p.i].id })); /* the model only chooses; reasons stay the fixed, reviewed ones */ if (sel.length) cache(key, sel); } catch (e) { sel = null; }
   }
-  PICKS = sel ? sel.map(s => { const x = c.find(y => y.id === s.id); return x && Object.assign({}, x, { why: s.why, ai: true }); }).filter(Boolean) : c.slice(0, 4);
+  PICKS = sel ? sel.map(s => { const x = c.find(y => y.id === s.id); return x && Object.assign({}, x, { ai: true }); }).filter(Boolean) : c.slice(0, 4);
   if (!PICKS.length) PICKS = c.slice(0, 4);
   window.renderShelf && renderShelf();
 }
@@ -144,7 +144,7 @@ function localSearch(words, kinds) {
   if (want('live')) dedupe(IP.live).forEach(x => { const g = ((cache('ch.groups') || {})[baseName(x.name)] || {}).g || ''; push('live', x.name, 'قناة مباشرة' + (g ? ' · ' + g : ''), { ip: ipItem('live', x) }, sc(x.name + ' ' + g + (g === 'أخبار' ? ' اخبار news' : ''))); });
   if (want('movie')) IP.vod.forEach(x => push('movie', x.name, 'فيلم', { ip: ipItem('movie', x) }, sc(x.name)));
   if (want('series')) IP.series.forEach(x => push('series', x.name, 'مسلسل', { ip: ipItem('series', x) }, sc(x.name + ' ' + (x.genre || ''))));
-  if (want('quran')) (SURAS.length ? SURAS : (window.SURAS_DATA || [])).forEach(s => push('quran', 'سورة ' + s.name, `${s.type} · ${s.ayas} آية`, { sura: s.n }, sc('سورة ' + s.name)));
+  if (want('quran')) (SURAS.length ? SURAS : (window.SURAS_DATA || [])).forEach(s => push('quran', 'سورة ' + s.name, `${s.type} · ${arCount(s.ayas, "آية واحدة", "آيتان", "آيات", "آية")}`, { sura: s.n }, sc('سورة ' + s.name)));
   if (want('news')) NEWS.forEach((n, i) => push('news', n.title, n.src + ' · ' + (n.cat || ''), { news: i }, sc(n.title + ' ' + (n.cat || '') + ' ' + (n.sum || ''))));
   return out.sort((a, b) => b.s - a.s).slice(0, 18);
 }

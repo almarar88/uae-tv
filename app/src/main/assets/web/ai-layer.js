@@ -4,7 +4,7 @@
 'use strict';
 const AITAG = '<span class="aitag">✦ ذكاء اصطناعي</span>';
 const raw = url => call('get', url);
-const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 60 ? `قبل ${Math.max(1, m)} دقيقة` : m < 1440 ? `قبل ${Math.round(m / 60)} ساعة` : fmtTime(t, false); };
+const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 60 ? `قبل ${MIN_W(Math.max(1, m))}` : m < 1440 ? `قبل ${HR_W(Math.round(m / 60))}` : fmtTime(t, false); };
 const cache = (k, v) => v === undefined ? (() => { try { return JSON.parse(localStorage[k] || 'null'); } catch { return null; } })() : (localStorage[k] = JSON.stringify(v));
 const aiJSON = async (sys, user) => { const r = await ai(sys + '\nأعد JSON صالحاً فقط دون أي نص آخر.', [{ role: 'user', text: typeof user === 'string' ? user : JSON.stringify(user) }]); return JSON.parse(r.replace(/^```(json)?|```$/gm, '').trim()); };
 const online = () => navigator.onLine !== false;
@@ -55,7 +55,7 @@ async function aiNews(pass = 0) {
   if (pass < 3) return aiNews(pass + 1);
 }
 function newsCard(n, i) {
-  return `<div class="tv nws" data-f data-news="${i}" tabindex="-1"><div class="art" style="--c1:${n.c};--c2:#0d0a06">${n.img ? `<img class="cov" src="${esc(n.img)}" onerror="this.remove()">` : ''}<div class="ntx"><em>${esc(n.cat)}</em><b>${esc(n.title)}</b></div><i class="gloss"></i></div><span class="lbl">${esc(n.src)} · ${ago(n.t)}</span></div>`;
+  return `<div class="tv nws" data-f data-news="${i}" tabindex="-1"><div class="art" style="--c1:${n.c};--c2:#0d0a06">${n.img ? `<img class="cov" src="${esc(n.img)}" onerror="this.remove()">` : ''}<div class="ntx"><em>${esc(n.cat)}</em><b dir="auto">${esc(n.title)}</b></div><i class="gloss"></i></div><span class="lbl">${esc(n.src)} · ${ago(n.t)}</span></div>`;
 }
 function renderNews() {
   if (!NEWS.length) { $('#newsRow').innerHTML = '<div class="empty">تعذّر جلب الأخبار حالياً — تحقق من الاتصال</div>'; return; }
@@ -68,12 +68,12 @@ function renderNews() {
   if (stack[stack.length - 1] === 'news') renderNewsPanel();
 }
 function renderNewsPanel() {
-  $('#newsMeta').innerHTML = `${NEWS.length} خبراً · يتحدّث كل 15 دقيقة · التصنيف والملخصات ${AITAG}`;
+  $('#newsMeta').innerHTML = `${arCount(NEWS.length, 'خبر واحد', 'خبران', 'أخبار', 'خبراً')} · يتحدّث كل 15 دقيقة · التصنيف والملخصات ${AITAG}`;
   $('#newsCats').innerHTML = ['الكل', ...NCATS].map(c => `<button data-f data-ncat="${c}" class="${c === NCAT ? 'sel' : ''}">${c}</button>`).join('');
   const list = NEWS.filter(n => NCAT === 'الكل' || n.cat === NCAT);
-  $('#newsList').innerHTML = list.length ? list.map(n => `<div class="nitem" data-f data-nitem="${NEWS.indexOf(n)}" tabindex="-1"><div class="nh"><em>${esc(n.cat)}</em><b>${esc(n.title)}</b></div>
+  $('#newsList').innerHTML = list.length ? list.map(n => `<div class="nitem" data-f data-nitem="${NEWS.indexOf(n)}" tabindex="-1"><div class="nh"><em>${esc(n.cat)}</em><b dir="auto">${esc(n.title)}</b></div>
     ${n.sum ? `<p>${AITAG} ${esc(n.sum)}</p>` : n.desc ? `<p>${esc(n.desc.slice(0, 200))}</p>` : ''}
-    <small>المصدر: ${esc(n.src)} · ${fmtTime(n.t, false)} ${dateLines(n.t).greg} · <span class="lnk">${esc((n.link || '').replace(/^https?:\/\/(www\.)?/, '').slice(0, 70))}</span></small></div>`).join('') : '<div class="empty">لا أخبار في هذا التصنيف الآن</div>';
+    <small>المصدر: ${esc(n.src)} · ${fmtTime(n.t, false)} ${dateLines(n.t).greg} · <span class="lnk" dir="ltr">${esc(((n.link || '').match(/^https?:\/\/(?:www\.)?([^/]+)/) || [, ''])[1])}</span></small></div>`).join('') : '<div class="empty">لا أخبار في هذا التصنيف الآن</div>';
 }
 
 /* ════════ LIWAIPTV (Xtream) ════════ */
@@ -245,7 +245,7 @@ async function runCommand(q) {
   let call = null;
   if (aiReady() && online()) {
     try {
-      call = await aiJSON(`أنت طبقة التحكم الذكية في تلفزيون «الكود TV». حوّل طلب المستخدم إلى استدعاء أداة واحدة: {"tool":"اسم","args":{...},"say":"جملة عربية قصيرة للمستخدم"}.
+      call = await aiJSON(`أنت طبقة التحكم الذكية في تلفزيون «الكود». حوّل طلب المستخدم إلى استدعاء أداة واحدة: {"tool":"اسم","args":{...},"say":"جملة عربية قصيرة للمستخدم"}.
 الأدوات: ${Object.entries(TOOLS).map(([k, v]) => k + ': ' + v).join('\n')}
 التطبيقات المثبتة (اسم=حزمة): ${APPS.slice(0, 60).map(a => a.label + '=' + a.pkg).join('، ')}
 ${IP.live.length ? 'قنوات Liwaiptv أمثلة: ' + IP.live.slice(0, 40).map(x => x.name).join('، ') : 'لا يوجد اشتراك Liwaiptv'}
@@ -270,7 +270,7 @@ async function execTool(c, q) {
     case 'quran': { const n = Math.min(114, Math.max(1, +a.sura || 1)); closeCmd(); onHome(); await openSura(n); if (a.aya) { const v = $(`[data-aya="${+a.aya}"]`); if (v) { setFocus(v); v.scrollIntoView({ block: 'center' }); } } return; }
     case 'set_pref': { const ok = { city: CITIES.some(x => x.id === a.value), adhan: ['on', 'off'].includes(a.value), clock: ['12', '24'].includes(String(a.value)), idle: ['0', '5', '15'].includes(String(a.value)), kids: ['off', '30', '60', '120'].includes(String(a.value)) }[a.key];
       if (!ok) return say('لا يمكن تغيير هذا الإعداد بهذه القيمة'); setPref(a.key, String(a.value)); if (a.key === 'city') { loadWeather(); tick(); } if (a.key === 'kids') { setPref('kids.start', '0'); kidsTick(); applyKids(); } return say('تم ✓'); }
-    case 'remind': { const m = Math.max(1, Math.min(600, +a.minutes || 10)); setTimeout(() => { toast('⏰ تذكير: ' + (a.text || '')); A.speak && A.speak('تذكير: ' + (a.text || '')); }, m * 60000); return say(`سأذكّرك بعد ${m} دقيقة (ما دام الكود TV مفتوحاً)`); }
+    case 'remind': { const m = Math.max(1, Math.min(600, +a.minutes || 10)); setTimeout(() => { toast('⏰ تذكير: ' + (a.text || '')); A.speak && A.speak('تذكير: ' + (a.text || '')); }, m * 60000); return say(`سأذكّرك بعد ${MIN_W(m)} (ما دام تطبيق الكود مفتوحاً)`); }
     case 'briefing': { closeCmd(); open('briefing'); await briefing(); return; }
     case 'ask_screen': return askScreen(a.question || q);
     case 'translate': return translate(a.text || q);
@@ -326,8 +326,8 @@ async function personalise() {
   if (c) o = c; else if (aiReady() && online()) {
     try {
       let U = {}; try { U = JSON.parse(A.usage()); } catch { }
-      const j = await aiJSON('رتّب صفوف الشاشة الرئيسية لتلفزيون أسرة إماراتية حسب الوقت ومواقيت الصلاة وسجل الاستخدام. أعد {"order":[معرّفات الصفوف كلها],"why":"سبب قصير جداً"}. المعرّفات: sug,news,apps,iptvRecent,iptvLive,iptvMovies,iptvSeries', { time: fmtTime(Date.now()), weekday: DAYS[uaeParts().wd], next_prayer: PNAMES[nextPrayer().i] + ' ' + fmtTime(nextPrayer().t), ramadan: isRamadan(), has_iptv: hasIP(), top_apps: Object.entries(U).sort((a, b) => (b[1].total || 0) - (a[1].total || 0)).slice(0, 6).map(([p, u]) => [APPS.find(a => a.pkg === p)?.label || p, u.total]) });
-      if (Array.isArray(j.order)) { o = { order: j.order, why: '✦ ' + (j.why || ''), ai: true }; cache(key, o); }
+      const j = await aiJSON('رتّب صفوف الشاشة الرئيسية لتلفزيون أسرة إماراتية حسب الوقت ومواقيت الصلاة وسجل الاستخدام. أعد {"order":[معرّفات الصفوف كلها],}. المعرّفات: sug,news,apps,iptvRecent,iptvLive,iptvMovies,iptvSeries', { time: fmtTime(Date.now()), weekday: DAYS[uaeParts().wd], next_prayer: PNAMES[nextPrayer().i] + ' ' + fmtTime(nextPrayer().t), ramadan: isRamadan(), has_iptv: hasIP(), top_apps: Object.entries(U).sort((a, b) => (b[1].total || 0) - (a[1].total || 0)).slice(0, 6).map(([p, u]) => [APPS.find(a => a.pkg === p)?.label || p, u.total]) });
+      if (Array.isArray(j.order)) { o = { order: j.order, ai: true }; cache(key, o); }
     } catch { }
   }
   const sc = $('#home .scroller') || $('#home'); const rows = Object.fromEntries($$('#home .row[data-row]').map(r => [r.dataset.row, r]));
@@ -336,12 +336,22 @@ async function personalise() {
   const seen = new Set(); o.order.filter(id => rows[id] && !seen.has(id) && seen.add(id)).concat(Object.keys(rows).filter(k => !seen.has(k))).forEach(id => parent.insertBefore(rows[id], $('#credit')));
   if (o.why) { const g = $('#greet'); g.dataset.why = o.why; }
 }
-async function greet() {
-  const key = 'greet.' + uaeParts().d + '.' + slot(); let g = cache(key);
-  if (!g && aiReady() && online()) { try { g = (await ai('اكتب تحية افتتاحية واحدة دافئة بلهجة إماراتية مهذبة (حتى 14 كلمة) تناسب الوقت، تذكر الطقس أو الصلاة القادمة من السياق فقط. بلا رموز تعبيرية.', [{ role: 'user', text: contextBlock() }])).trim(); cache(key, g); } catch { } }
-  if (!g) return;
-  $('#greetTx').textContent = g; $('#greet').classList.remove('hidden');
+// Greeting: a fixed, human-reviewed set by time of day (no generated text), plus an occasion line.
+const GREETS = { morning: ['صباح الخير', 'صبّحكم الله بالخير'], noon: ['يومكم سعيد'], evening: ['مساكم الله بالخير', 'مساء الخير'], night: ['تصبحون على خير'] };
+function greetText(now = new Date()) {
+  const p = uaeParts(now.getTime()), h = p.h, day = p.d;
+  const set = h >= 4 && h < 12 ? GREETS.morning : h < 15 && h >= 12 ? GREETS.noon : h >= 15 && h < 22 ? GREETS.evening : GREETS.night;
+  const lines = [set[day % set.length]];
+  let hm = 0; try { hm = +new Intl.DateTimeFormat('en-u-ca-islamic-umalqura', { month: 'numeric', timeZone: 'Asia/Dubai' }).format(now); } catch { }
+  if (hm === 9) lines.push('رمضان كريم');
+  else if (p.wd === 5 && h >= 4 && h < 19) lines.push('جمعة مباركة');
+  return lines.join(' · ');
 }
+function greet() {
+  const t = greetText(); const el = $('#shGreet'); if (el) el.textContent = t;
+  $('#greetTx').textContent = t; $('#greet .aitag') && $('#greet .aitag').remove();
+}
+setInterval(() => greet(), 60000);
 // briefing: narrate automatically via TTS when enabled
 const _brief = briefing;
 window.briefing = briefing = async function () { await _brief(); $('#briefSrc').insertAdjacentHTML('afterbegin', AITAG + ' '); if (pref('brief.speak', 'on') === 'on' && aiReady()) A.speak && A.speak($('#briefBody').textContent); };
@@ -352,7 +362,7 @@ window.activate = activate = function (el) {
   if (!el) return;
   if (el.dataset.ip) return playIp(JSON.parse(el.dataset.ip));
   if (el.dataset.news) { open('news'); renderNewsPanel(); const t = $(`[data-nitem="${el.dataset.news}"]`); if (t) setTimeout(() => setFocus(t), 60); return; }
-  if (el.dataset.nitem) { const n = NEWS[+el.dataset.nitem]; A.speak && A.speak(n.title + '. ' + (n.sum || '')); toast('المصدر: ' + n.src + ' — ' + (n.link || '')); return; }
+  if (el.dataset.nitem) { const n = NEWS[+el.dataset.nitem]; A.speak && A.speak(n.title + '. ' + (n.sum || '')); toast('المصدر: ' + n.src + (((n.link || '').match(/^https?:\/\/(?:www\.)?([^/]+)/) || [])[1] ? ' — ' + n.link.match(/^https?:\/\/(?:www\.)?([^/]+)/)[1] : '')); return; }
   if (el.dataset.ncat) { NCAT = el.dataset.ncat; renderNewsPanel(); setFocus($(`[data-ncat="${NCAT}"]`)); return; }
   const act = el.dataset.act;
   if (act === 'news') { open('news'); return renderNewsPanel(); }
@@ -386,7 +396,7 @@ const ICON = (a, fb) => ICONSET.includes(a) ? `<i class="ico" style="--ico:url(i
   const items = [['picks', '', 'مختاراتي'], ['news', '', 'الأخبار'], ['prayers', '', 'الصلاة'], ['quran', '', 'القرآن'], ['weather', '', 'الطقس'], ['football', '', 'الدوري'], ['assistant', '', 'اسأل ✦']];
   const nav = document.createElement('nav'); nav.id = 'tabs';
   nav.innerHTML = '<div class="tabs">' + items.map(([a, i, t]) => `<button class="tab${a === 'picks' || a === 'football' ? ' hidden' : ''}" ${a === 'picks' ? 'id="tabPicks"' : a === 'football' ? 'id="secFoot"' : ''} data-f data-act="${a}" tabindex="-1">${ICON(a, i)}<span>${t}</span></button>`).join('') + '</div><button class="tab gear" data-f data-act="settings" tabindex="-1" title="الإعدادات">' + ICON('settings', '⚙') + '</button>';
-  $('#home').prepend(nav);
+  nav.insertAdjacentHTML('afterbegin', '<img id="tbLogo" src="brand.png" alt="الكود">'); $('#home').prepend(nav);
   const sec = $('[data-row="sec"]'); if (sec) sec.remove();
 })();
 
