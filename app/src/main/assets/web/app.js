@@ -184,12 +184,13 @@ const shade = (h, f) => { const n = parseInt(h.slice(1), 16); return hex([n >> 1
 function artStyle(c1, c2) { c2 = c2 || shade(c1, .55); return `--c1:${c1};--c2:${c2}`; }
 function tileHTML(a) {
   const k = esc(a.pkg);
-  if (a.banner) return `<div class="tv" data-f data-pkg="${k}" tabindex="-1"><div class="art banner"><img src="${a.banner}"><i class="gloss"></i></div><span class="lbl">${esc(a.label)}</span></div>`;
+  const full = a.banner || a.art; // app's own TV banner, else its adaptive icon composed full-bleed natively
+  if (full) return `<div class="tv" data-f data-pkg="${k}" tabindex="-1"><div class="art banner"><img src="${full}"><i class="gloss"></i></div><span class="lbl">${esc(a.label)}</span></div>`;
   const c1 = a.c1 || TINT[a.pkg] && TINT[a.pkg][0], c2 = a.c2 || TINT[a.pkg] && TINT[a.pkg][1];
   return `<div class="tv" data-f data-pkg="${k}" tabindex="-1"><div class="art icon"${c1 ? ` style="${artStyle(c1, c2)}"` : ''}><img src="${a.icon}"><i class="gloss"></i></div><span class="lbl">${esc(a.label)}</span></div>`;
 }
 async function tintApps() {
-  await Promise.all(APPS.filter(a => !a.banner && !a.c1 && !TINT[a.pkg]).map(async a => { const c = await tintFallback(a); if (c) { const h = hex(c); TINT[a.pkg] = [h, shade(h, .5)]; } }));
+  await Promise.all(APPS.filter(a => !a.banner && !a.art && !a.c1 && !TINT[a.pkg]).map(async a => { const c = await tintFallback(a); if (c) { const h = hex(c); TINT[a.pkg] = [h, shade(h, .5)]; } }));
   $$('.tv[data-pkg] .art.icon:not([style])').forEach(el => { const t = TINT[el.parentNode.dataset.pkg]; if (t) el.setAttribute('style', artStyle(t[0], t[1])); });
 }
 async function loadApps() {
@@ -209,6 +210,7 @@ async function loadApps() {
 function renderAppRow() {
   const keep = cur && cur.dataset.pkg && cur.closest('#appRow') ? cur.dataset.pkg : null;
   $('#appRow').innerHTML = APPS.length ? APPS.map(tileHTML).join('') : '<div class="empty">لا توجد تطبيقات</div>';
+  $('#favRow').innerHTML = APPS.slice(0, 5).map(tileHTML).join('');
   if (keep) { const el = $(`#appRow [data-pkg="${CSS.escape(keep)}"]`); cur = null; if (el) setFocus(el); else focusFirst(); }
   if (MOVING) { const el = $(`#appRow [data-pkg="${CSS.escape(MOVING)}"]`); el && el.classList.add('moving'); }
 }
@@ -384,6 +386,7 @@ function setFocus(el) {
   if (el.classList.contains('tv')) { el.classList.remove('nudge'); void el.offsetWidth; el.classList.add('nudge'); }
   if (el.tagName === 'INPUT') el.focus(); else if (document.activeElement && document.activeElement.tagName === 'INPUT') document.activeElement.blur();
   el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+  if (el.closest('.grid')) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
   if (stack.length === 1) { const row = el.closest('.row, #hero, #top'); if (row) row.scrollIntoView({ block: row.id === 'top' || row.id === 'hero' ? 'start' : 'center', behavior: 'smooth' }); }
 }
 function focusFirst() { const f = focusables(); setFocus(f[0]); }

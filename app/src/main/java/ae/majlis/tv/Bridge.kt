@@ -47,17 +47,40 @@ class Bridge(private val act: Activity, private val js: (String) -> Unit) {
             for (ri in pm.queryIntentActivities(i, 0)) {
                 val pkg = ri.activityInfo.packageName
                 if (pkg == c.packageName || !seen.add(pkg)) continue
-                val banner = if (cat == Intent.CATEGORY_LEANBACK_LAUNCHER) ri.activityInfo.loadBanner(pm) ?: ri.activityInfo.applicationInfo.loadBanner(pm) else null
                 val ic = ri.loadIcon(pm)
+                val banner = bannerFor(pm, ri, pkg)
                 val (c1, c2) = tint(ic)
+                val adaptive = if (banner == null) adaptiveArt(ic) else null
                 out.put(JSONObject().put("pkg", pkg).put("label", ri.loadLabel(pm).toString())
                     .put("icon", png(ic, 192, 192)).put("c1", c1).put("c2", c2)
-                    .put("banner", banner?.let { png(it, 320, 180) } ?: "")
+                    .put("banner", banner?.let { png(it, 480, 270) } ?: "")
+                    .put("art", adaptive ?: "")
                     .put("tv", cat == Intent.CATEGORY_LEANBACK_LAUNCHER))
             }
         }
         add(Intent.CATEGORY_LEANBACK_LAUNCHER); add(Intent.CATEGORY_LAUNCHER)
         out.toString()
+    }
+    /** The app's own TV banner: activity → application → leanback launch activity. */
+    private fun bannerFor(pm: PackageManager, ri: android.content.pm.ResolveInfo, pkg: String): Drawable? = try {
+        ri.activityInfo.loadBanner(pm) ?: ri.activityInfo.applicationInfo.loadBanner(pm)
+            ?: pm.getApplicationBanner(pkg)
+            ?: pm.getLeanbackLaunchIntentForPackage(pkg)?.let { pm.getActivityBanner(it) }
+    } catch (_: Exception) { null }
+    /** Adaptive icon → 16:9 tile: background layer stretched full-bleed, foreground layer large and centred. */
+    private fun adaptiveArt(d: Drawable): String? {
+        if (Build.VERSION.SDK_INT < 26 || d !is android.graphics.drawable.AdaptiveIconDrawable) return null
+        return try {
+            val w = 480; val h = 270
+            val b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888); val cv = Canvas(b)
+            d.background?.let { bg ->  // sample bg as a square, then scale to fill the wide tile
+                val sq = Bitmap.createBitmap(108, 108, Bitmap.Config.ARGB_8888); bg.setBounds(0, 0, 108, 108); bg.draw(Canvas(sq))
+                cv.drawBitmap(sq, null, android.graphics.Rect(0, 0, w, h), android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG))
+            }
+            d.foreground?.let { fg -> val s = (h * 1.5).toInt(); val l = (w - s) / 2; val t = (h - s) / 2; fg.setBounds(l, t, l + s, t + s); fg.draw(cv) }
+            val bo = ByteArrayOutputStream(); b.compress(Bitmap.CompressFormat.PNG, 100, bo)
+            "data:image/png;base64," + Base64.encodeToString(bo.toByteArray(), Base64.NO_WRAP)
+        } catch (_: Exception) { null }
     }
     /** Dominant / vibrant colours of the icon (AndroidX Palette) → tvOS-style tile gradient. */
     private fun tint(d: Drawable): Pair<String, String> = try {
@@ -80,6 +103,11 @@ class Bridge(private val act: Activity, private val js: (String) -> Unit) {
         Store.recordLaunch(c, pkg)
         act.runOnUiThread { act.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
         return true
+    }
+    /** proactive prayer pause: sends a standard media PAUSE key to whatever holds media focus (no permission needed). */
+    @JavascriptInterface fun mediaPause() {
+        val am = c.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        for (a in intArrayOf(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.ACTION_UP)) am.dispatchMediaKeyEvent(android.view.KeyEvent(a, android.view.KeyEvent.KEYCODE_MEDIA_PAUSE))
     }
     @JavascriptInterface fun usage(): String = Store.usage(c).toString()
     @JavascriptInterface fun openSystemSettings() { act.runOnUiThread { try { act.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) {} } }

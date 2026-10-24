@@ -49,3 +49,9 @@ The AI explanation is grounded only in these texts and numbers its sources [1] a
 
 - Original code © 2026 Ahmed Almarar, MIT licence (see `LICENSE`).
 - Concept inspired by the feature list of tshi-dev/UrTV («تلفزيونك»). That repo has no licence, so **no code, assets, text or design were taken from it**.
+
+## 1.2.0
+- **Icons:** Streamline, «Flex Line – Free» set (https://www.streamlinehq.com), used under Streamline's free licence with attribution. Files are in `app/src/main/assets/web/icons/`.
+- **Font:** Noto Naskh Arabic by Google, SIL Open Font License 1.1.
+- **Artwork enrichment:** images and summaries come from Wikipedia/Wikimedia (CC BY-SA) and are shown only when the match is confident. They are always labelled «ويكيبيديا».
+- **App artwork:** comes from the installed apps themselves at runtime (TV banner or adaptive icon). The repository contains no third-party logos.

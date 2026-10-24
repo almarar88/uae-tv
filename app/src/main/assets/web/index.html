@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=1920, user-scalable=no">
 <title>الكود TV</title>
 <link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="design.css">
 </head>
 <body>
 <div id="bg"><div class="bgl" id="bg0"></div><div class="bgl" id="bg1"></div><div id="shade"></div></div>
@@ -45,6 +46,11 @@
   <div id="ticker" class="hidden" data-f data-act="news" tabindex="-1"><b>عاجل</b><div class="tk"><span id="tkTx"></span></div></div>
   <div id="ramCard" class="card hidden" data-f data-act="ramadan" tabindex="-1"><div class="lbl">☾ رمضان كريم · <span id="ramCity"></span></div><div id="ramTx"></div></div>
 
+  <section class="row" data-row="fav">
+    <h2>المفضّلة</h2>
+    <div class="strip fav" id="favRow"></div>
+  </section>
+
   <section class="row" data-row="sug">
     <h2>مقترحة لك <small id="sugWhy"></small></h2>
     <div class="strip" id="sugRow"></div>
@@ -78,7 +84,7 @@
 
   <section class="row" data-row="apps">
     <h2>كل التطبيقات <small>اضغط مطولاً على «موافق» لإعادة الترتيب</small></h2>
-    <div class="strip" id="appRow"></div>
+    <div class="strip grid" id="appRow"></div>
   </section>
   <div id="credit"></div>
 </main>
@@ -193,5 +199,7 @@
 <script src="suras.js"></script>
 <script src="app.js"></script>
 <script src="ai-layer.js"></script>
+<script src="ai-pro.js"></script>
+<script src="design.js"></script>
 </body>
 </html>

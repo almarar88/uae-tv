@@ -98,9 +98,12 @@ function ipItem(kind, x) {
   if (kind === 'movie') return { kind, id: String(x.stream_id), name: x.name, img: x.stream_icon, ext: x.container_extension || 'mp4', rating: x.rating };
   return { kind, id: String(x.series_id), name: x.name, img: x.cover, back: (x.backdrop_path || [])[0], rating: x.rating, year: (x.releaseDate || '').slice(0, 4), plot: x.plot, genre: x.genre };
 }
+const hue = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.codePointAt(0)) >>> 0; return h % 360; };
+const initials = n => String(n).replace(/\b(HD|FHD|SD|4K|UHD)\b/gi, '').trim().split(/\s+/).slice(0, 2).map(w => [...w][0]).join('');
 function ipCard(it, poster) {
   const d = esc(JSON.stringify(it));
-  return `<div class="tv ip ${poster ? 'poster' : ''}" data-f data-ip="${d}" tabindex="-1"><div class="art ${it.img ? '' : 'icon'}">${it.img ? `<img class="cov" src="${esc(it.img)}" onerror="this.parentNode.classList.add('icon');this.remove()">` : ''}${!it.img ? `<b class="ipn">${esc(it.name.slice(0, 2))}</b>` : ''}${it.prog ? `<div class="prog"><i style="width:${Math.round(it.prog * 100)}%"></i></div>` : ''}<i class="gloss"></i></div><span class="lbl">${esc(it.name)}</span></div>`;
+  if (it.kind === 'live') return `<div class="tv ip ch" data-f data-ip="${d}" tabindex="-1"><div class="art" style="--c1:hsl(${hue(it.name)} 45% 34%);--c2:hsl(${hue(it.name)} 50% 12%)">${it.img ? `<img class="logo" src="${esc(it.img)}" onerror="this.nextElementSibling.hidden=false;this.remove()"><b class="ipn" hidden>${esc(initials(it.name))}</b>` : `<b class="ipn">${esc(initials(it.name))}</b>`}<i class="gloss"></i></div><span class="lbl">${esc(it.name)}</span></div>`;
+  return `<div class="tv ip ${poster ? 'poster' : ''}" data-f data-ip="${d}" tabindex="-1"><div class="art ${it.img ? '' : 'icon'}">${it.img ? `<img class="cov" src="${esc(it.img)}" onerror="this.parentNode.classList.add('icon');this.remove()">` : ''}${!it.img ? `<b class="ipn">${esc(initials(it.name))}</b><em class="pt">${esc(it.name)}</em>` : ''}${it.prog ? `<div class="prog"><i style="width:${Math.round(it.prog * 100)}%"></i></div>` : ''}<i class="gloss"></i></div><span class="lbl">${esc(it.name)}</span></div>`;
 }
 function renderIptvRows() {
   $('#ipRecent').innerHTML = recent().slice(0, 12).map(x => ipCard(x)).join('');
@@ -137,7 +140,7 @@ function hubFocus(it) {
   $('#hbTitle').textContent = it.name;
   $('#hbMeta').innerHTML = [{ live: 'بث مباشر', movie: 'فيلم', series: 'مسلسل' }[it.kind], it.year, it.rating ? '★ ' + (+it.rating).toFixed(1) : '', it.genre].filter(Boolean).map(esc).join(' · ');
   $('#hbPlot').textContent = it.plot || '';
-  clearTimeout(HBT); HBT = setTimeout(() => hubBack(it.back || (it.kind !== 'live' ? it.img : '')), 220);
+  clearTimeout(HBT); HBT = setTimeout(() => hubBack(it.back || ''), 220);
 }
 function renderHub(series) {
   ensureHub();
@@ -312,8 +315,7 @@ document.addEventListener('keydown', e => { // menu key (outside app row) or "/"
 /* ════════ AI-PERSONALISED HOME ════════ */
 function localRowOrder() {
   const h = uaeParts().h, np = nextPrayer(), soon = np.t - Date.now() < 45 * 60000;
-  const base = h < 11 ? ['news', 'sec', 'sug', 'iptvRecent', 'iptvLive', 'apps', 'iptvMovies', 'iptvSeries'] : h < 18 ? ['sug', 'news', 'iptvRecent', 'sec', 'iptvLive', 'apps', 'iptvMovies', 'iptvSeries'] : ['iptvRecent', 'sug', 'iptvMovies', 'iptvSeries', 'iptvLive', 'news', 'sec', 'apps'];
-  if (soon) { base.splice(base.indexOf('sec'), 1); base.unshift('sec'); }
+  const base = h < 11 ? ['news', 'sug', 'iptvRecent', 'iptvLive', 'apps', 'iptvMovies', 'iptvSeries'] : h < 18 ? ['sug', 'news', 'iptvRecent', 'iptvLive', 'apps', 'iptvMovies', 'iptvSeries'] : ['iptvRecent', 'sug', 'iptvMovies', 'iptvSeries', 'iptvLive', 'news', 'apps'];
   return { order: base, why: soon ? `اقتربت صلاة ${PNAMES[np.i]}` : '' };
 }
 async function personalise() {
@@ -324,12 +326,13 @@ async function personalise() {
   if (c) o = c; else if (aiReady() && online()) {
     try {
       let U = {}; try { U = JSON.parse(A.usage()); } catch { }
-      const j = await aiJSON('رتّب صفوف الشاشة الرئيسية لتلفزيون أسرة إماراتية حسب الوقت ومواقيت الصلاة وسجل الاستخدام. أعد {"order":[معرّفات الصفوف كلها],"why":"سبب قصير جداً"}. المعرّفات: sug,news,sec,apps,iptvRecent,iptvLive,iptvMovies,iptvSeries', { time: fmtTime(Date.now()), weekday: DAYS[uaeParts().wd], next_prayer: PNAMES[nextPrayer().i] + ' ' + fmtTime(nextPrayer().t), ramadan: isRamadan(), has_iptv: hasIP(), top_apps: Object.entries(U).sort((a, b) => (b[1].total || 0) - (a[1].total || 0)).slice(0, 6).map(([p, u]) => [APPS.find(a => a.pkg === p)?.label || p, u.total]) });
+      const j = await aiJSON('رتّب صفوف الشاشة الرئيسية لتلفزيون أسرة إماراتية حسب الوقت ومواقيت الصلاة وسجل الاستخدام. أعد {"order":[معرّفات الصفوف كلها],"why":"سبب قصير جداً"}. المعرّفات: sug,news,apps,iptvRecent,iptvLive,iptvMovies,iptvSeries', { time: fmtTime(Date.now()), weekday: DAYS[uaeParts().wd], next_prayer: PNAMES[nextPrayer().i] + ' ' + fmtTime(nextPrayer().t), ramadan: isRamadan(), has_iptv: hasIP(), top_apps: Object.entries(U).sort((a, b) => (b[1].total || 0) - (a[1].total || 0)).slice(0, 6).map(([p, u]) => [APPS.find(a => a.pkg === p)?.label || p, u.total]) });
       if (Array.isArray(j.order)) { o = { order: j.order, why: '✦ ' + (j.why || ''), ai: true }; cache(key, o); }
     } catch { }
   }
   const sc = $('#home .scroller') || $('#home'); const rows = Object.fromEntries($$('#home .row[data-row]').map(r => [r.dataset.row, r]));
   const anchor = $('#home .row[data-row]'); const parent = anchor.parentNode;
+  o = Object.assign({}, o, { order: ['fav'].concat((o.order || []).filter(x => x !== 'fav')) });
   const seen = new Set(); o.order.filter(id => rows[id] && !seen.has(id) && seen.add(id)).concat(Object.keys(rows).filter(k => !seen.has(k))).forEach(id => parent.insertBefore(rows[id], $('#credit')));
   if (o.why) { const g = $('#greet'); g.dataset.why = o.why; }
 }
@@ -373,12 +376,24 @@ window.renderSettings = renderSettings = function () {
 $('#ipSave').onclick = () => { const s = $('#ipS').value.trim(), u = $('#ipU').value.trim(), p = $('#ipP').value; if (!/^https?:\/\//.test(s) || !u || !p) return toast('أدخل الخادم واسم المستخدم وكلمة المرور'); A.iptvSet(s, u, p); $('#ipS').value = $('#ipU').value = $('#ipP').value = ''; renderSettings(); toast('حُفظ الاشتراك مشفّراً'); loadIptv(); };
 $('#ipClear').onclick = () => { A.iptvSet('', '', ''); renderSettings(); loadIptv(); toast('حُذف الاشتراك'); };
 // a «مختاراتي» tile in sections when a subscription exists
-(function addHubTile() { const t = document.createElement('div'); t.className = 'tv sec'; t.id = 'secPicks'; t.dataset.f = ''; t.dataset.act = 'picks'; t.tabIndex = -1; t.innerHTML = '<div class="art g-pck"><b>🎬</b><i class="gloss"></i></div><span class="lbl">مختاراتي</span>'; $('#secRow').prepend(t); })();
+(function addHubTile() { return; const t = document.createElement('div'); t.className = 'tv sec'; t.id = 'secPicks'; t.dataset.f = ''; t.dataset.act = 'picks'; t.tabIndex = -1; t.innerHTML = '<div class="art g-pck"><b>🎬</b><i class="gloss"></i></div><span class="lbl">مختاراتي</span>'; $('#secRow').prepend(t); })();
+
+/* icons: Streamline «Flex Line – Free» (see CREDITS.md) used as CSS masks so they take the text colour */
+const ICONSET = ['picks', 'news', 'prayers', 'quran', 'weather', 'assistant', 'briefing', 'football', 'ambient', 'translate', 'settings', 'kids'];
+const ICON = (a, fb) => ICONSET.includes(a) ? `<i class="ico" style="--ico:url(icons/${a}.svg)"></i>` : `<i>${fb}</i>`;
+/* ════════ tvOS-style top tab bar (sections + gear) ════════ */
+(function tabBar() {
+  const items = [['picks', '', 'مختاراتي'], ['news', '', 'الأخبار'], ['prayers', '', 'الصلاة'], ['quran', '', 'القرآن'], ['weather', '', 'الطقس'], ['football', '', 'الدوري'], ['assistant', '', 'اسأل ✦']];
+  const nav = document.createElement('nav'); nav.id = 'tabs';
+  nav.innerHTML = '<div class="tabs">' + items.map(([a, i, t]) => `<button class="tab${a === 'picks' || a === 'football' ? ' hidden' : ''}" ${a === 'picks' ? 'id="tabPicks"' : a === 'football' ? 'id="secFoot"' : ''} data-f data-act="${a}" tabindex="-1">${ICON(a, i)}<span>${t}</span></button>`).join('') + '</div><button class="tab gear" data-f data-act="settings" tabindex="-1" title="الإعدادات">' + ICON('settings', '⚙') + '</button>';
+  $('#home').prepend(nav);
+  const sec = $('[data-row="sec"]'); if (sec) sec.remove();
+})();
 
 /* ════════ boot ════════ */
 (function boot2() {
   if (!A || IS_DREAM) return;
-  const sync = () => $('#secPicks').classList.toggle('hidden', !hasIP() || KIDS());
+  const sync = () => $('#tabPicks').classList.toggle('hidden', !hasIP() || KIDS());
   sync(); kidsTick(); setInterval(kidsTick, 30000); document.body.classList.toggle('kids', KIDS());
   loadNews(); setInterval(loadNews, 15 * 60000);
   loadIptv().then(sync).then(personalise);
