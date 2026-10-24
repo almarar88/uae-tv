@@ -1,0 +1,2 @@
+-keepclassmembers class ae.majlis.tv.Bridge { @android.webkit.JavascriptInterface <methods>; }
+-keepattributes JavascriptInterface

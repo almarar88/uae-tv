@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, user-scalable=no">
+<title>مجلس</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="bg"><div class="bgl" id="bg0"></div><div class="bgl" id="bg1"></div><div id="shade"></div></div>
+
+<main id="home" class="layer active">
+  <header id="top">
+    <div id="brand">
+      <div class="flag"><i class="r"></i><i class="g"></i><i class="w"></i><i class="k"></i></div>
+      <div><div class="bname">مجلس</div><div class="bsub">تلفزيونك الإماراتي</div></div>
+    </div>
+    <div id="clockbox">
+      <div id="clock">--:--</div>
+      <div id="dates"><span id="hijri"></span><span class="dot">•</span><span id="greg"></span></div>
+    </div>
+    <div id="wx" data-f data-act="weather" tabindex="-1">
+      <div id="wxTemp">--°</div><div id="wxDesc">الطقس</div><div id="wxCity"></div>
+    </div>
+  </header>
+
+  <section id="hero">
+    <div id="prayerCard" class="card" data-f data-act="prayers" tabindex="-1">
+      <div class="lbl">الصلاة القادمة · <span id="pCity"></span></div>
+      <div id="nextName">—</div>
+      <div id="nextIn"></div>
+      <div id="pList"></div>
+    </div>
+    <div id="briefCard" class="card" data-f data-act="briefing" tabindex="-1">
+      <div class="lbl">✦ الموجز اليومي</div>
+      <div id="briefPreview">اضغط لموجز ذكي عن الطقس والصلاة والمباريات</div>
+    </div>
+    <div id="footCard" class="card hidden" data-f data-act="football" tabindex="-1">
+      <div class="lbl">⚽ دوري المحترفين الإماراتي</div>
+      <div id="footPreview"></div>
+    </div>
+  </section>
+
+  <section class="row">
+    <h2>مقترحة لك <small id="sugWhy"></small></h2>
+    <div class="strip" id="sugRow"></div>
+  </section>
+
+  <section class="row">
+    <h2>الأقسام</h2>
+    <div class="strip" id="secRow">
+      <div class="tile sec" data-f data-act="assistant" tabindex="-1"><b>🎙</b><span>المساعد</span></div>
+      <div class="tile sec" data-f data-act="quran" tabindex="-1"><b class="qi">۞</b><span>القرآن الكريم</span></div>
+      <div class="tile sec" data-f data-act="briefing" tabindex="-1"><b>✦</b><span>الموجز اليومي</span></div>
+      <div class="tile sec hidden" id="secFoot" data-f data-act="football" tabindex="-1"><b>⚽</b><span>الدوري</span></div>
+      <div class="tile sec" data-f data-act="weather" tabindex="-1"><b>☀</b><span>الطقس</span></div>
+      <div class="tile sec" data-f data-act="ambient" tabindex="-1"><b>☾</b><span>الوضع الهادئ</span></div>
+      <div class="tile sec" data-f data-act="settings" tabindex="-1"><b>⚙</b><span>الإعدادات</span></div>
+    </div>
+  </section>
+
+  <section class="row">
+    <h2>كل التطبيقات</h2>
+    <div class="strip" id="appRow"></div>
+  </section>
+  <div id="credit"></div>
+</main>
+
+<!-- Panels -->
+<section id="assistant" class="layer panel">
+  <h1>المساعد <small id="aiProv"></small></h1>
+  <div id="chat"></div>
+  <div class="bar">
+    <button id="micBtn" data-f>🎙 تحدّث</button>
+    <input id="askIn" data-f placeholder="اكتب سؤالك…" autocomplete="off">
+    <button id="askBtn" data-f>إرسال</button>
+  </div>
+  <div class="chips" id="chips"></div>
+</section>
+
+<section id="briefing" class="layer panel">
+  <h1>الموجز اليومي</h1>
+  <div id="briefBody" class="prose"></div>
+  <div class="bar"><button data-f id="briefSpeak">🔊 استمع</button><button data-f id="briefAgain">↻ تحديث</button></div>
+  <div id="briefSrc" class="src"></div>
+</section>
+
+<section id="quran" class="layer panel">
+  <h1>القرآن الكريم <small>نص المصحف من مشروع تنزيل (tanzil.net)</small></h1>
+  <div id="suraGrid"></div>
+</section>
+
+<section id="reader" class="layer panel">
+  <h1 id="rTitle"></h1>
+  <div id="verses"></div>
+  <div class="hint">اختر آية واضغط OK لشرحها بالذكاء الاصطناعي مع المصادر</div>
+</section>
+
+<section id="explain" class="layer panel">
+  <h1>شرح الآية</h1>
+  <div id="exVerse" class="qtext"></div>
+  <div id="exBody" class="prose"></div>
+  <div id="exSrc" class="src"></div>
+  <div class="bar"><button data-f id="exBack">رجوع</button></div>
+</section>
+
+<section id="football" class="layer panel">
+  <h1>دوري المحترفين الإماراتي <small id="fSeason"></small></h1>
+  <div class="cols">
+    <div><h3>مباريات اليوم</h3><div id="fToday"></div><h3>المباراة القادمة</h3><div id="fNext"></div><h3>آخر نتيجة</h3><div id="fLast"></div></div>
+    <div><h3>الترتيب</h3><table id="fTable"></table><div id="fNote" class="src"></div></div>
+  </div>
+  <div class="bar"><button data-f id="fBack">رجوع</button></div>
+</section>
+
+<section id="weather" class="layer panel">
+  <h1>الطقس · <span id="wCity"></span></h1>
+  <div id="wNow"></div>
+  <div id="wDays"></div>
+  <div class="src">البيانات من Open-Meteo.com (CC BY 4.0)</div>
+  <div class="bar"><button data-f id="wBack">رجوع</button></div>
+</section>
+
+<section id="prayers" class="layer panel">
+  <h1>مواقيت الصلاة · <span id="ptCity"></span></h1>
+  <div id="ptTable"></div>
+  <div class="src">محسوبة على الجهاز: زاوية الفجر 18.2° والعشاء 18.2° والعصر على المذهب الشافعي، مع تعديل دقائق التمكين المعتمد في الإمارات. قد تختلف دقيقة أو دقيقتين عن تقويم الهيئة العامة للشؤون الإسلامية.</div>
+  <div class="bar"><button data-f id="ptBack">رجوع</button></div>
+</section>
+
+<section id="settings" class="layer panel">
+  <h1>الإعدادات</h1>
+  <div class="setgrid">
+    <div class="set"><label>المدينة (للصلاة والطقس)</label><div class="opts" id="cityOpts"></div></div>
+    <div class="set"><label>تنبيه الأذان</label><div class="opts"><button data-f data-pref="adhan" data-val="on">مفعّل</button><button data-f data-pref="adhan" data-val="off">متوقف</button><button data-f id="testAdhan">تجربة التنبيه</button></div></div>
+    <div class="set"><label>الخلفية</label><div class="opts" id="bgOpts"></div></div>
+    <div class="set"><label>الساعة</label><div class="opts"><button data-f data-pref="clock" data-val="12">12 ساعة</button><button data-f data-pref="clock" data-val="24">24 ساعة</button></div></div>
+    <div class="set"><label>الوضع الهادئ تلقائياً بعد</label><div class="opts"><button data-f data-pref="idle" data-val="5">5 دقائق</button><button data-f data-pref="idle" data-val="15">15 دقيقة</button><button data-f data-pref="idle" data-val="0">أبداً</button><button data-f id="dreamSet">شاشة التوقف في النظام</button></div></div>
+    <div class="set"><label>الذكاء الاصطناعي <small id="aiInfo"></small></label>
+      <div class="opts"><input data-f id="keyIn" type="password" placeholder="مفتاح بديل (اختياري)"><button data-f id="keySave">حفظ المفتاح</button><button data-f id="keyClear">استخدام المفتاح المدمج</button></div>
+      <div class="opts"><input data-f id="modelIn" placeholder="اسم النموذج (اختياري)"><button data-f id="modelSave">حفظ النموذج</button></div></div>
+    <div class="set"><label>التحديثات <small id="verInfo"></small></label><div class="opts"><button data-f id="updBtn">البحث عن تحديث</button><span id="updMsg"></span></div></div>
+    <div class="set"><label>عن التطبيق</label><div class="opts"><button data-f id="sysSet">إعدادات التلفزيون</button><button data-f id="credBtn">المصادر والحقوق</button></div></div>
+  </div>
+</section>
+
+<section id="credits" class="layer panel"><h1>المصادر والحقوق</h1><div id="credBody" class="prose small"></div></section>
+
+<section id="ambient" class="layer">
+  <div id="amClock"></div>
+  <div id="amDates"></div>
+  <div id="amPrayer"></div>
+  <div id="amCredit"></div>
+</section>
+
+<div id="toast"></div>
+<script src="photos.js"></script>
+<script src="suras.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

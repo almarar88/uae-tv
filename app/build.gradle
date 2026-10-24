@@ -1,0 +1,58 @@
+plugins {
+  id 'com.android.application'
+  id 'org.jetbrains.kotlin.android'
+}
+
+// ── AI key: read at BUILD time only, never committed ──────────────────────────
+// Priority: env TV_AI_API_KEY  →  local.properties "tv.ai.key"  →  empty (user can paste one in Settings).
+def localProps = new Properties()
+def lpFile = rootProject.file('local.properties')
+if (lpFile.exists()) lpFile.withInputStream { localProps.load(it) }
+def aiKey = System.getenv('TV_AI_API_KEY') ?: (localProps.getProperty('tv.ai.key') ?: '')
+def esc = { String s -> s.replace('\\', '\\\\').replace('"', '\\"') }
+
+// ── Signing: keystore lives OUTSIDE git (keystore/ is gitignored) ─────────────
+def ksProps = new Properties()
+def ksFile = rootProject.file(System.getenv('MAJLIS_KEYSTORE_PROPS') ?: 'keystore/keystore.properties')
+if (ksFile.exists()) ksFile.withInputStream { ksProps.load(it) }
+
+android {
+  namespace 'ae.majlis.tv'
+  compileSdk 35
+  defaultConfig {
+    applicationId 'ae.majlis.tv'
+    minSdk 24
+    targetSdk 35
+    versionCode 1
+    versionName '1.0.0'
+    buildConfigField 'String', 'AI_KEY', "\"${esc(aiKey)}\""
+    buildConfigField 'String', 'UPDATE_REPO', "\"${project.property('updateRepo')}\""
+  }
+  buildFeatures { buildConfig true }
+  signingConfigs {
+    release {
+      if (ksFile.exists()) {
+        storeFile rootProject.file(ksProps['storeFile'])
+        storePassword ksProps['storePassword']
+        keyAlias ksProps['keyAlias']
+        keyPassword ksProps['keyPassword']
+      }
+    }
+  }
+  buildTypes {
+    release {
+      minifyEnabled true
+      shrinkResources true
+      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+      if (ksFile.exists()) signingConfig signingConfigs.release
+    }
+  }
+  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+  kotlinOptions { jvmTarget = '17' }
+  androidResources { noCompress 'txt' }
+}
+
+dependencies {
+  implementation 'androidx.core:core-ktx:1.13.1'
+  implementation 'androidx.webkit:webkit:1.12.1'
+}
