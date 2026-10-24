@@ -16,6 +16,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -156,12 +157,16 @@ fun Overlay(onBack: () -> Unit, content: @Composable () -> Unit) {
 
 @Composable
 fun Panel(title: String, onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         AlcodeTheme {
-            Column(Modifier.widthIn(min = 420.dp, max = 640.dp).clip(RoundedCornerShape(18.dp)).background(C.Raised).padding(28.dp)) {
-                Text(title, style = MaterialTheme.typography.headlineSmall, color = C.Text)
-                Sadu(Modifier.padding(top = 8.dp, bottom = 18.dp))
-                content()
+            // centred panel on a scrim, always inside the overscan-safe area; long content scrolls with focus
+            Box(Modifier.fillMaxSize().background(C.Bg.copy(alpha = .6f)).padding(horizontal = SafeH, vertical = SafeV), contentAlignment = Alignment.Center) {
+                Column(Modifier.widthIn(min = 420.dp, max = 640.dp).heightIn(max = 486.dp).clip(RoundedCornerShape(18.dp)).background(C.Raised)
+                    .verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(28.dp)) {
+                    Text(title, style = MaterialTheme.typography.headlineSmall, color = C.Text)
+                    Sadu(Modifier.padding(top = 8.dp, bottom = 18.dp))
+                    content()
+                }
             }
         }
     }

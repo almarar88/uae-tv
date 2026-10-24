@@ -417,7 +417,7 @@ fun SettingsTab(s: AppState) {
         item { row("التحقق من التحديثات", upd ?: "الإصدار الحالي ${BuildConfig.VERSION_NAME}") {
             upd = "جارٍ التحقق…"
             s.io { val r = try { Updater.check() } catch (e: Throwable) { null }
-                withContext(Dispatchers.Main) { updInfo = r; upd = when { r == null -> "تعذّر التحقق"; r.newer -> "يتوفر ${r.latest} — اضغط «تثبيت التحديث»"; else -> "لديك أحدث إصدار (${r.latest})" } } }
+                withContext(Dispatchers.Main) { updInfo = r; upd = when { r == null -> "تعذّر التحقق"; r.newer -> "يتوفر ${r.latest} — اضغط «تثبيت التحديث»"; else -> "لديك أحدث إصدار (${BuildConfig.VERSION_NAME})" } } }
         } }
         if (updInfo?.newer == true) item { row("تثبيت التحديث", updInfo!!.latest) {
             upd = "جارٍ التنزيل…"; val u = updInfo!!.apk
