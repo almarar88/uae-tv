@@ -13,7 +13,7 @@ Harness: tools/preview (real live feeds: Sky News Arabia, Emarat Al Youm, The Na
   - `onRenderProcessGone` → `recreate()` instead of a dead white WebView.
 - **Soak.** 30 minutes at 6× CPU throttle, with random D-pad keys, screens opened and closed, and `onAppsChanged` storms. GC'd heap, DOM nodes, listeners and key latency were sampled every 2 minutes.
   - Run 1 (code before the final polish): 8,067 keys. Heap 1.54 → 2.18 MB. DOM nodes 2,604 → ~3,400, flat from minute 2. Listeners flat at 94. Images flat at 112. Median key latency 46–55 ms, p90 120–171 ms. No crash, no hang.
-  - Run 2 (release code): SOAK2
+  - Run 2 (release code, 22:51–23:24 Asia/Dubai): 5,706 keys over 32.6 min. Heap 1.78 → 2.06 MB (warm-up, min 4), then flat at 2.11–2.16 MB from min 6 to the end. DOM nodes 3,434–3,468. Listeners flat at 96. Images flat at 112. Median latency 47–56 ms; p90 111–175 ms (last sample 260 ms while the host was loaded). No crash, no hang.
 - **Perf (1920×1080, favourites row, 24 keys, 4× throttle).** Key→paint median 91.9 → 31.1 ms, p90 226.9 → 55.4 ms, max 265 → 201 ms. `setFocus` 4.0 ms median, 5.8 ms max. At 6×: median 56.6 ms.
 
 ## Issues found → fixed (1.3.1)
