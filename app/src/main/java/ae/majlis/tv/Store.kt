@@ -9,7 +9,7 @@ object Store {
     fun get(c: Context, k: String, def: String = "") = p(c).getString(k, def) ?: def
     fun set(c: Context, k: String, v: String) = p(c).edit().putString(k, v).apply()
     fun all(c: Context): JSONObject {
-        val o = JSONObject(); p(c).all.forEach { (k, v) -> if (!k.startsWith("u.") && k != "ai.key") o.put(k, v.toString()) }
+        val o = JSONObject(); p(c).all.forEach { (k, v) -> if (!k.startsWith("u.") && k != "ai.key" && k != "iptv.enc") o.put(k, v.toString()) }
         o.put("ai.key.set", get(c, "ai.key").isNotEmpty()); return o
     }
     fun recordLaunch(c: Context, pkg: String) {

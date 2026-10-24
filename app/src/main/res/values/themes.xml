@@ -1,6 +1,6 @@
 <resources>
   <style name="Theme.Majlis" parent="@android:style/Theme.Material.NoActionBar.Fullscreen">
-    <item name="android:windowBackground">@color/bg</item>
+    <item name="android:windowBackground">@drawable/splash</item>
     <item name="android:colorAccent">@color/gold</item>
   </style>
   <color name="bg">#FF0E0B07</color>

@@ -48,8 +48,10 @@ class Bridge(private val act: Activity, private val js: (String) -> Unit) {
                 val pkg = ri.activityInfo.packageName
                 if (pkg == c.packageName || !seen.add(pkg)) continue
                 val banner = if (cat == Intent.CATEGORY_LEANBACK_LAUNCHER) ri.activityInfo.loadBanner(pm) ?: ri.activityInfo.applicationInfo.loadBanner(pm) else null
+                val ic = ri.loadIcon(pm)
+                val (c1, c2) = tint(ic)
                 out.put(JSONObject().put("pkg", pkg).put("label", ri.loadLabel(pm).toString())
-                    .put("icon", png(ri.loadIcon(pm), 160, 160))
+                    .put("icon", png(ic, 192, 192)).put("c1", c1).put("c2", c2)
                     .put("banner", banner?.let { png(it, 320, 180) } ?: "")
                     .put("tv", cat == Intent.CATEGORY_LEANBACK_LAUNCHER))
             }
@@ -57,6 +59,15 @@ class Bridge(private val act: Activity, private val js: (String) -> Unit) {
         add(Intent.CATEGORY_LEANBACK_LAUNCHER); add(Intent.CATEGORY_LAUNCHER)
         out.toString()
     }
+    /** Dominant / vibrant colours of the icon (AndroidX Palette) → tvOS-style tile gradient. */
+    private fun tint(d: Drawable): Pair<String, String> = try {
+        val b = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
+        d.setBounds(0, 0, 96, 96); d.draw(Canvas(b))
+        val p = androidx.palette.graphics.Palette.from(b).maximumColorCount(16).generate()
+        val dom = p.getDominantColor(0xFF3A2E1C.toInt())
+        val alt = p.getDarkVibrantColor(p.getDarkMutedColor(dom))
+        Pair(String.format("#%06X", dom and 0xFFFFFF), String.format("#%06X", alt and 0xFFFFFF))
+    } catch (_: Exception) { Pair("", "") }
     private fun png(d: Drawable, w: Int, h: Int): String {
         val b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         d.setBounds(0, 0, w, h); d.draw(Canvas(b))
@@ -165,6 +176,13 @@ class Bridge(private val act: Activity, private val js: (String) -> Unit) {
         act.runOnUiThread { act.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)) }
         "started"
     }
+
+    // ── Liwaiptv / Xtream subscription (credentials stay native + encrypted) ──
+    @JavascriptInterface fun iptvSet(server: String, user: String, pass: String) { Iptv.save(c, server, user, pass) }
+    @JavascriptInterface fun iptvHas(): Boolean = Iptv.has(c)
+    @JavascriptInterface fun iptvApi(id: String, action: String, extra: String) = async(id) { Iptv.api(c, action, extra) }
+    @JavascriptInterface fun iptvPlay(kind: String, sid: String, ext: String, title: String): Boolean = Iptv.play(c, kind, sid, ext, title)
+    @JavascriptInterface fun liwaInstalled(): Boolean = c.packageManager.getLaunchIntentForPackage(Iptv.LIWA_PKG) != null || c.packageManager.getLeanbackLaunchIntentForPackage(Iptv.LIWA_PKG) != null
 
     fun shutdown() { tts?.shutdown(); pool.shutdownNow() }
 }

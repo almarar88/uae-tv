@@ -100,10 +100,10 @@ let WX = null;
 async function loadWeather() {
   const c = city();
   try {
-    WX = await getJSON(`https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lng}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=Asia%2FDubai&forecast_days=4`);
+    WX = await getJSON(`https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lng}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,wind_gusts_10m_max,uv_index_max,precipitation_sum&hourly=visibility&timezone=Asia%2FDubai&forecast_days=4`);
     localStorage.wx = JSON.stringify({ at: Date.now(), city: c.id, WX });
   } catch (e) { try { const s = JSON.parse(localStorage.wx); if (s.city === c.id) WX = s.WX; } catch { } }
-  renderWeather();
+  renderWeather(); window.onWeather && onWeather();
 }
 function renderWeather() {
   const c = city(); $('#wxCity').textContent = c.ar; $('#wCity').textContent = c.ar;
@@ -168,16 +168,61 @@ function renderFootball() {
 
 /* ── apps & smart suggestions ───────────────────────────── */
 let APPS = [];
+/* tvOS-style tile: 16:9 rounded art, full-bleed banner or icon on a Palette-derived gradient. */
+const TINT = {};
+function tintFallback(a) { // JS dominant colour when the bridge did not supply one (preview / old builds)
+  return new Promise(res => { const im = new Image(); im.onload = () => { try {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 24; const g = cv.getContext('2d'); g.drawImage(im, 0, 0, 24, 24);
+    const d = g.getImageData(0, 0, 24, 24).data, bins = {};
+    for (let i = 0; i < d.length; i += 4) { if (d[i + 3] < 200) continue; const r = d[i], gg = d[i + 1], b = d[i + 2], mx = Math.max(r, gg, b), mn = Math.min(r, gg, b);
+      const k = (r >> 5) + ',' + (gg >> 5) + ',' + (b >> 5); const w = 1 + (mx - mn) / 64; (bins[k] = bins[k] || [0, 0, 0, 0]); bins[k][0] += r * w; bins[k][1] += gg * w; bins[k][2] += b * w; bins[k][3] += w; }
+    const top = Object.values(bins).sort((x, y) => y[3] - x[3])[0]; if (!top) return res(null);
+    const c = top.slice(0, 3).map(v => Math.round(v / top[3])); res(c); } catch { res(null); } }; im.onerror = () => res(null); im.src = a.icon; });
+}
+const hex = c => '#' + c.map(v => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join('');
+const shade = (h, f) => { const n = parseInt(h.slice(1), 16); return hex([n >> 16, (n >> 8) & 255, n & 255].map(v => Math.round(v * f))); };
+function artStyle(c1, c2) { c2 = c2 || shade(c1, .55); return `--c1:${c1};--c2:${c2}`; }
 function tileHTML(a) {
-  if (a.banner) return `<div class="tile hasBanner" data-f data-pkg="${esc(a.pkg)}" tabindex="-1"><img class="banner" src="${a.banner}"><span>${esc(a.label)}</span></div>`;
-  return `<div class="tile" data-f data-pkg="${esc(a.pkg)}" tabindex="-1"><img class="icon" src="${a.icon}"><span>${esc(a.label)}</span></div>`;
+  const k = esc(a.pkg);
+  if (a.banner) return `<div class="tv" data-f data-pkg="${k}" tabindex="-1"><div class="art banner"><img src="${a.banner}"><i class="gloss"></i></div><span class="lbl">${esc(a.label)}</span></div>`;
+  const c1 = a.c1 || TINT[a.pkg] && TINT[a.pkg][0], c2 = a.c2 || TINT[a.pkg] && TINT[a.pkg][1];
+  return `<div class="tv" data-f data-pkg="${k}" tabindex="-1"><div class="art icon"${c1 ? ` style="${artStyle(c1, c2)}"` : ''}><img src="${a.icon}"><i class="gloss"></i></div><span class="lbl">${esc(a.label)}</span></div>`;
+}
+async function tintApps() {
+  await Promise.all(APPS.filter(a => !a.banner && !a.c1 && !TINT[a.pkg]).map(async a => { const c = await tintFallback(a); if (c) { const h = hex(c); TINT[a.pkg] = [h, shade(h, .5)]; } }));
+  $$('.tv[data-pkg] .art.icon:not([style])').forEach(el => { const t = TINT[el.parentNode.dataset.pkg]; if (t) el.setAttribute('style', artStyle(t[0], t[1])); });
 }
 async function loadApps() {
   try { APPS = JSON.parse(await call('apps')); } catch { APPS = []; }
   APPS.sort((a, b) => (b.tv - a.tv) || a.label.localeCompare(b.label, 'ar'));
-  $('#appRow').innerHTML = APPS.length ? APPS.map(tileHTML).join('') : '<div class="empty">لا توجد تطبيقات</div>';
-  renderSuggestions();
+  // persisted user order; apps never seen before are appended at the end
+  let ord = []; try { ord = JSON.parse(pref('apps.order', '[]')); } catch { }
+  const known = ord.filter(p => APPS.some(a => a.pkg === p)); const fresh = APPS.filter(a => !known.includes(a.pkg)).map(a => a.pkg);
+  const first = !ord.length; ord = known.concat(fresh);
+  if (fresh.length || known.length !== JSON.parse(pref('apps.order', '[]') || '[]').length) setPref('apps.order', JSON.stringify(ord));
+  APPS.sort((a, b) => ord.indexOf(a.pkg) - ord.indexOf(b.pkg));
+  if (!first && fresh.length && loadApps.done) toast('أُضيف: ' + fresh.map(p => APPS.find(a => a.pkg === p).label).join('، '));
+  loadApps.done = true;
+  renderAppRow();
+  renderSuggestions(); tintApps();
 }
+function renderAppRow() {
+  const keep = cur && cur.dataset.pkg && cur.closest('#appRow') ? cur.dataset.pkg : null;
+  $('#appRow').innerHTML = APPS.length ? APPS.map(tileHTML).join('') : '<div class="empty">لا توجد تطبيقات</div>';
+  if (keep) { const el = $(`#appRow [data-pkg="${CSS.escape(keep)}"]`); cur = null; if (el) setFocus(el); else focusFirst(); }
+  if (MOVING) { const el = $(`#appRow [data-pkg="${CSS.escape(MOVING)}"]`); el && el.classList.add('moving'); }
+}
+// live refresh when packages are added/removed/updated (called from MainActivity's receiver)
+window.onAppsChanged = () => { clearTimeout(window._ac); window._ac = setTimeout(() => loadApps(), 600); };
+/* move mode: long-press OK on an app tile, then ◀ ▶ to reorder, OK/Back to finish */
+let MOVING = null;
+function startMove(el) { MOVING = el.dataset.pkg; el.classList.add('moving'); toast('وضع الترتيب: استخدم ◀ ▶ لنقل التطبيق ثم اضغط موافق'); }
+function stepMove(dir) {
+  const i = APPS.findIndex(a => a.pkg === MOVING); const rtl = getComputedStyle($('#appRow')).direction === 'rtl';
+  const j = i + ((dir === 'right') !== rtl ? 1 : -1); if (j < 0 || j >= APPS.length) return;
+  [APPS[i], APPS[j]] = [APPS[j], APPS[i]]; renderAppRow();
+}
+function endMove() { setPref('apps.order', JSON.stringify(APPS.map(a => a.pkg))); $$('.moving').forEach(e => e.classList.remove('moving')); MOVING = null; toast('حُفظ ترتيب التطبيقات'); }
 function slot() { return Math.floor(uaeParts().h / 3); }
 function localSuggest() {
   let U = {}; try { U = JSON.parse(A.usage()); } catch { }
@@ -189,7 +234,7 @@ const SLOT_AR = ['بعد منتصف الليل', 'الفجر', 'الصباح', '
 function renderSuggestions(list, why) {
   list = list || localSuggest();
   $('#sugRow').innerHTML = list.length ? list.map(tileHTML).join('') : '<div class="empty">ستظهر هنا اقتراحات حسب استخدامك ووقت اليوم</div>';
-  $('#sugWhy').textContent = why || `حسب استخدامك في وقت ${SLOT_AR[slot()]}`;
+  tintApps(); $('#sugWhy').textContent = why || `حسب استخدامك في وقت ${SLOT_AR[slot()]}`;
 }
 async function aiSuggest() {
   if (!APPS.length || !aiReady()) return;
@@ -228,7 +273,7 @@ async function ask(q) {
   addMsg('u', q); chatLog.push({ role: 'user', text: q });
   const wait = addMsg('a', '…');
   const appsList = APPS.slice(0, 50).map(a => `${a.label} = ${a.pkg}`).join('\n');
-  const sys = `أنت «مجلس»، مساعد صوتي عربي على تلفزيون منزلي في الإمارات. أجب بالعربية الفصحى المبسطة وبإيجاز (3-5 جمل) لأن الإجابة تُعرض على شاشة التلفزيون.
+  const sys = `أنت «الكود»، مساعد صوتي عربي على تلفزيون منزلي في الإمارات. أجب بالعربية الفصحى المبسطة وبإيجاز (3-5 جمل) لأن الإجابة تُعرض على شاشة التلفزيون.
 لا تخترع معلومات: إذا لم تكن المعلومة في السياق أو في معرفتك المؤكدة فقل ذلك بوضوح. لا تختلق نتائج مباريات أو مواقيت.
 إذا طلب المستخدم فتح تطبيق من القائمة، أضف في آخر ردك السطر [[open:اسم_الحزمة]] بالضبط.
 السياق الحالي:
@@ -305,7 +350,7 @@ function renderSettings() {
   $('#verInfo').textContent = 'الإصدار ' + A.version();
 }
 function renderCredits() {
-  $('#credBody').innerHTML = `<b>مجلس</b> — واجهة رئيسية عربية إماراتية لأجهزة Android TV. الكود مفتوح المصدر (MIT).<br><br>
+  $('#credBody').innerHTML = `<img src="brand.png" style="height:60px;vertical-align:middle;margin-left:14px"><b>الكود TV</b> (Alcode TV) من مؤسسة الكود — واجهة رئيسية عربية إماراتية لأجهزة Android TV. الكود مفتوح المصدر (MIT).<br><br>
 <b>الصور (Wikimedia Commons):</b><br>${PHOTOS.map(p => `• ${esc(p.ar)} — ${esc(p.artist)} — ${esc(p.license)}`).join('<br>')}<br>(تم قصّها وتصغيرها إلى 1920×1080؛ الروابط الكاملة في CREDITS.md)<br><br>
 <b>نص القرآن الكريم:</b> مشروع تنزيل Tanzil Quran Text (Uthmani) — tanzil.net — يُستخدم دون تعديل وفق شروطه.<br>
 <b>التفسير:</b> التفسير الميسر وتفسير الجلالين عبر واجهة alquran.cloud.<br>
@@ -322,7 +367,7 @@ async function checkUpdate(manual) {
       const b = document.createElement('button'); b.setAttribute('data-f', ''); b.textContent = 'تثبيت التحديث';
       b.onclick = async () => { $('#updMsg').firstChild.textContent = 'جارٍ التنزيل… '; try { const r = await call('installUpdate', u.apk); if (r === 'needs-permission') toast('اسمح بتثبيت التطبيقات من «مجلس» ثم أعد المحاولة'); } catch (e) { toast(e.message); } };
       $('#updMsg').appendChild(b);
-      if (!manual) toast(`يتوفر تحديث لمجلس (${u.latest}) — من الإعدادات`);
+      if (!manual) toast(`يتوفر تحديث لالكود TV (${u.latest}) — من الإعدادات`);
     } else if (manual) $('#updMsg').textContent = `أنت على آخر إصدار (${u.current})`;
   } catch (e) { if (manual) $('#updMsg').textContent = 'تعذّر التحقق: ' + e.message; }
 }
@@ -333,8 +378,10 @@ const layerEl = () => document.getElementById(stack[stack.length - 1]);
 function focusables() { return [...layerEl().querySelectorAll('[data-f]')].filter(e => e.offsetParent !== null && !e.closest('.hidden')); }
 function setFocus(el) {
   if (!el) return;
-  if (cur) cur.classList.remove('focus');
+  if (cur) { cur.classList.remove('focus'); cur.style.removeProperty('--nx'); }
+  if (cur && el.classList.contains('tv')) { const a = cur.getBoundingClientRect(), b = el.getBoundingClientRect(); el.style.setProperty('--nx', Math.sign(b.left - a.left) || 0); el.style.setProperty('--ny', Math.sign(b.top - a.top) || 0); }
   cur = el; el.classList.add('focus');
+  if (el.classList.contains('tv')) { el.classList.remove('nudge'); void el.offsetWidth; el.classList.add('nudge'); }
   if (el.tagName === 'INPUT') el.focus(); else if (document.activeElement && document.activeElement.tagName === 'INPUT') document.activeElement.blur();
   el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
   if (stack.length === 1) { const row = el.closest('.row, #hero, #top'); if (row) row.scrollIntoView({ block: row.id === 'top' || row.id === 'hero' ? 'start' : 'center', behavior: 'smooth' }); }
@@ -398,12 +445,18 @@ document.addEventListener('keydown', e => {
   resetIdle();
   if (stack[stack.length - 1] === 'ambient' && !IS_DREAM) { back(); e.preventDefault(); return; }
   const k = e.key;
+  if (MOVING) { if (k === 'ArrowLeft' || k === 'ArrowRight') stepMove(k === 'ArrowLeft' ? 'left' : 'right'); else if (k === 'Enter' || k === 'Escape' || k === 'Backspace' || k === 'GoBack') { if (!e.repeat) endMove(); } e.preventDefault(); return; }
+  if ((k === 'Enter' || k === 'ContextMenu') && cur && cur.dataset.pkg && cur.closest('#appRow')) {
+    e.preventDefault(); if (k === 'ContextMenu') return startMove(cur);
+    if (!e.repeat && !LP) { const el = cur; LP = setTimeout(() => { LP = 'fired'; startMove(el); }, 650); } return; }
   const inInput = document.activeElement && document.activeElement.tagName === 'INPUT';
   if (k === 'ArrowLeft' || k === 'ArrowRight') { if (inInput && document.activeElement.value) return; move(k === 'ArrowLeft' ? 'left' : 'right'); e.preventDefault(); }
   else if (k === 'ArrowUp' || k === 'ArrowDown') { if (inInput) document.activeElement.blur(); move(k === 'ArrowUp' ? 'up' : 'down'); e.preventDefault(); }
   else if (k === 'Enter' || k === ' ' && !inInput) { if (inInput) { if (cur && cur.id === 'askIn') { ask(cur.value); cur.value = ''; } else document.activeElement.blur(); } else activate(cur); e.preventDefault(); }
   else if (k === 'Escape' || k === 'Backspace' && !inInput || k === 'GoBack' || k === 'BrowserBack') { back(); e.preventDefault(); }
 });
+let LP = null;
+document.addEventListener('keyup', e => { if (e.key === 'Enter' && LP) { if (LP !== 'fired') { clearTimeout(LP); activate(cur); } LP = null; } });
 document.addEventListener('click', e => { const t = e.target.closest('[data-f]'); if (t && !t.matches('button:not([data-pref])') ) { setFocus(t); activate(t); } else if (t) setFocus(t); });
 
 /* idle → ambient */
@@ -412,7 +465,7 @@ function resetIdle() { clearTimeout(idleT); const m = +pref('idle', '15'); if (m
 
 let toastT; function toast(t) { $('#toast').textContent = t; $('#toast').classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => $('#toast').classList.remove('on'), 4200); }
 window.onAdhan = i => { toast(`حان الآن موعد أذان ${PNAMES[i]} — حسب توقيت ${city().ar}`); tick(); };
-window.onResumeApp = () => { tick(); renderSuggestions(); };
+window.onResumeApp = () => { tick(); loadApps(); };
 
 /* buttons */
 function wire() {
@@ -436,7 +489,7 @@ function wire() {
 
 /* ── boot ───────────────────────────────────────────────── */
 function boot() {
-  if (!A) { document.body.innerHTML = '<p style="padding:80px;font-size:40px">يعمل داخل تطبيق مجلس فقط</p>'; return; }
+  if (!A) { document.body.innerHTML = '<p style="padding:80px;font-size:40px">يعمل داخل تطبيق الكود TV فقط</p>'; return; }
   loadPrefs();
   try { CITIES = JSON.parse(A.cities()); } catch { CITIES = [{ id: 'abudhabi', ar: 'أبوظبي', lat: 24.4539, lng: 54.3773 }]; }
   startBg(); tick(); setInterval(tick, 15000);

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=1920, user-scalable=no">
-<title>مجلس</title>
+<title>الكود TV</title>
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
@@ -12,8 +12,7 @@
 <main id="home" class="layer active">
   <header id="top">
     <div id="brand">
-      <div class="flag"><i class="r"></i><i class="g"></i><i class="w"></i><i class="k"></i></div>
-      <div><div class="bname">مجلس</div><div class="bsub">تلفزيونك الإماراتي</div></div>
+      <img id="logo" src="brand.png" alt="الكود"><div><div class="bname">الكود <span>TV</span></div><div class="bsub">تلفزيونك الإماراتي الذكي</div></div><div class="flag"><i class="r"></i><i class="g"></i><i class="w"></i><i class="k"></i></div>
     </div>
     <div id="clockbox">
       <div id="clock">--:--</div>
@@ -41,26 +40,44 @@
     </div>
   </section>
 
-  <section class="row">
+  <div id="greet" class="hidden"><span class="aitag">✦ ذكاء اصطناعي</span><span id="greetTx"></span></div>
+  <div id="alerts"></div>
+  <div id="ticker" class="hidden" data-f data-act="news" tabindex="-1"><b>عاجل</b><div class="tk"><span id="tkTx"></span></div></div>
+  <div id="ramCard" class="card hidden" data-f data-act="ramadan" tabindex="-1"><div class="lbl">☾ رمضان كريم · <span id="ramCity"></span></div><div id="ramTx"></div></div>
+
+  <section class="row" data-row="sug">
     <h2>مقترحة لك <small id="sugWhy"></small></h2>
     <div class="strip" id="sugRow"></div>
   </section>
 
-  <section class="row">
+  <section class="row" data-row="news">
+    <h2>الأخبار <small>من مصادر إماراتية · ملخصات ✦ بالذكاء الاصطناعي</small></h2>
+    <div class="strip" id="newsRow"><div class="empty">جارٍ جلب الأخبار…</div></div>
+  </section>
+  <section class="row hidden" data-row="iptvRecent" id="rowRecent"><h2>متابعة المشاهدة <small>Liwaiptv</small></h2><div class="strip" id="ipRecent"></div></section>
+  <section class="row hidden" data-row="iptvLive" id="rowLive"><h2>القنوات المباشرة <small>Liwaiptv</small></h2><div class="strip" id="ipLive"></div></section>
+  <section class="row hidden" data-row="iptvMovies" id="rowMovies"><h2>أفلام <small>Liwaiptv</small></h2><div class="strip" id="ipMovies"></div></section>
+  <section class="row hidden" data-row="iptvSeries" id="rowSeries"><h2>مسلسلات <small>Liwaiptv</small></h2><div class="strip" id="ipSeries"></div></section>
+
+  <section class="row" data-row="sec">
     <h2>الأقسام</h2>
     <div class="strip" id="secRow">
-      <div class="tile sec" data-f data-act="assistant" tabindex="-1"><b>🎙</b><span>المساعد</span></div>
-      <div class="tile sec" data-f data-act="quran" tabindex="-1"><b class="qi">۞</b><span>القرآن الكريم</span></div>
-      <div class="tile sec" data-f data-act="briefing" tabindex="-1"><b>✦</b><span>الموجز اليومي</span></div>
-      <div class="tile sec hidden" id="secFoot" data-f data-act="football" tabindex="-1"><b>⚽</b><span>الدوري</span></div>
-      <div class="tile sec" data-f data-act="weather" tabindex="-1"><b>☀</b><span>الطقس</span></div>
-      <div class="tile sec" data-f data-act="ambient" tabindex="-1"><b>☾</b><span>الوضع الهادئ</span></div>
-      <div class="tile sec" data-f data-act="settings" tabindex="-1"><b>⚙</b><span>الإعدادات</span></div>
+      <div class="tv sec" data-f data-act="news" tabindex="-1"><div class="art g-nws"><b>📰</b><i class="gloss"></i></div><span class="lbl">الأخبار</span></div>
+      <div class="tv sec" data-f data-act="assistant" tabindex="-1"><div class="art g-ast"><b class="">🎙</b><i class="gloss"></i></div><span class="lbl">المساعد</span></div>
+      <div class="tv sec" data-f data-act="quran" tabindex="-1"><div class="art g-qrn"><b class="qi">۞</b><i class="gloss"></i></div><span class="lbl">القرآن الكريم</span></div>
+      <div class="tv sec" data-f data-act="briefing" tabindex="-1"><div class="art g-brf"><b class="">✦</b><i class="gloss"></i></div><span class="lbl">الموجز اليومي</span></div>
+      <div class="tv sec hidden" id="secFoot" data-f data-act="football" tabindex="-1"><div class="art g-ftb"><b class="">⚽</b><i class="gloss"></i></div><span class="lbl">الدوري</span></div>
+      <div class="tv sec" data-f data-act="weather" tabindex="-1"><div class="art g-wth"><b class="">☀</b><i class="gloss"></i></div><span class="lbl">الطقس</span></div>
+      <div class="tv sec" data-f data-act="ambient" tabindex="-1"><div class="art g-amb"><b class="">☾</b><i class="gloss"></i></div><span class="lbl">الوضع الهادئ</span></div>
+      <div class="tv sec" data-f data-act="translate" tabindex="-1"><div class="art g-trn"><b>عA</b><i class="gloss"></i></div><span class="lbl">الترجمة</span></div>
+      <div class="tv sec" data-f data-act="ramadan" tabindex="-1"><div class="art g-ram"><b>☪</b><i class="gloss"></i></div><span class="lbl">إمساكية رمضان</span></div>
+      <div class="tv sec" data-f data-act="kids" tabindex="-1"><div class="art g-kid"><b>🧸</b><i class="gloss"></i></div><span class="lbl">وضع الأطفال</span></div>
+      <div class="tv sec" data-f data-act="settings" tabindex="-1"><div class="art g-set"><b class="">⚙</b><i class="gloss"></i></div><span class="lbl">الإعدادات</span></div>
     </div>
   </section>
 
-  <section class="row">
-    <h2>كل التطبيقات</h2>
+  <section class="row" data-row="apps">
+    <h2>كل التطبيقات <small>اضغط مطولاً على «موافق» لإعادة الترتيب</small></h2>
     <div class="strip" id="appRow"></div>
   </section>
   <div id="credit"></div>
@@ -139,10 +156,27 @@
     <div class="set"><label>الذكاء الاصطناعي <small id="aiInfo"></small></label>
       <div class="opts"><input data-f id="keyIn" type="password" placeholder="مفتاح بديل (اختياري)"><button data-f id="keySave">حفظ المفتاح</button><button data-f id="keyClear">استخدام المفتاح المدمج</button></div>
       <div class="opts"><input data-f id="modelIn" placeholder="اسم النموذج (اختياري)"><button data-f id="modelSave">حفظ النموذج</button></div></div>
+    <div class="set"><label>اشتراك Liwaiptv (Xtream) <small id="ipInfo"></small></label>
+      <div class="opts"><input data-f id="ipS" placeholder="http://server:port"><input data-f id="ipU" placeholder="اسم المستخدم" autocomplete="off"><input data-f id="ipP" type="password" placeholder="كلمة المرور"><button data-f id="ipSave">حفظ (مشفّر)</button><button data-f id="ipClear">حذف</button></div></div>
+    <div class="set"><label>وضع الأطفال</label><div class="opts"><button data-f data-pref="kids" data-val="off">متوقف</button><button data-f data-pref="kids" data-val="30">30 دقيقة</button><button data-f data-pref="kids" data-val="60">ساعة</button><button data-f data-pref="kids" data-val="120">ساعتان</button></div></div>
+    <div class="set"><label>الشخصنة بالذكاء الاصطناعي</label><div class="opts"><button data-f data-pref="ai.home" data-val="on">ترتيب الواجهة ذكياً</button><button data-f data-pref="ai.home" data-val="off">ترتيب ثابت</button><button data-f data-pref="brief.speak" data-val="on">قراءة الموجز صوتياً</button><button data-f data-pref="brief.speak" data-val="off">بلا صوت</button></div></div>
     <div class="set"><label>التحديثات <small id="verInfo"></small></label><div class="opts"><button data-f id="updBtn">البحث عن تحديث</button><span id="updMsg"></span></div></div>
     <div class="set"><label>عن التطبيق</label><div class="opts"><button data-f id="sysSet">إعدادات التلفزيون</button><button data-f id="credBtn">المصادر والحقوق</button></div></div>
   </div>
 </section>
+
+<section id="news" class="layer panel">
+  <h1>الأخبار <small id="newsMeta"></small></h1>
+  <div class="opts" id="newsCats"></div>
+  <div id="newsList"></div>
+</section>
+<section id="ramadan" class="layer panel">
+  <h1>إمساكية رمضان <small id="ramHead"></small></h1>
+  <div id="ramTable" class="ptable"></div>
+  <div class="src">المواقيت محسوبة على الجهاز (طريقة الهيئة العامة للشؤون الإسلامية والأوقاف التقريبية). الإمساك = الفجر − 10 دقائق. التاريخ الهجري: تقويم أم القرى — قد يختلف بدء الشهر عن الإعلان الرسمي برؤية الهلال.</div>
+</section>
+<div id="cmd" class="hidden"><div class="cbox"><span class="aitag">✦ الكود AI</span><input id="cmdIn" placeholder="قل أو اكتب أمراً: «افتح يوتيوب»، «شغّل قناة أبوظبي»، «أخبار الرياضة»، «ما هذا؟»" autocomplete="off"><button id="cmdMic">🎙</button></div><div id="cmdOut"></div></div>
+<div id="kidsLock" class="hidden"><div>انتهى وقت المشاهدة 🌙<small>اطلب من أحد الوالدين: اضغط مطولاً على «موافق» 3 ثوانٍ</small></div></div>
 
 <section id="credits" class="layer panel"><h1>المصادر والحقوق</h1><div id="credBody" class="prose small"></div></section>
 
@@ -151,11 +185,13 @@
   <div id="amDates"></div>
   <div id="amPrayer"></div>
   <div id="amCredit"></div>
+  <img id="amLogo" src="brand.png" alt="">
 </section>
 
 <div id="toast"></div>
 <script src="photos.js"></script>
 <script src="suras.js"></script>
 <script src="app.js"></script>
+<script src="ai-layer.js"></script>
 </body>
 </html>

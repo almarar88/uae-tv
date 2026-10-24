@@ -19,6 +19,9 @@ class MainActivity : Activity() {
     companion object { const val REQ_VOICE = 41; var instance: MainActivity? = null }
     private lateinit var web: WebView
     private lateinit var bridge: Bridge
+    private val pkgRx = object : android.content.BroadcastReceiver() {
+        override fun onReceive(c: android.content.Context, i: Intent) { js("window.onAppsChanged&&onAppsChanged()") }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(s: Bundle?) {
@@ -43,6 +46,12 @@ class MainActivity : Activity() {
         setContentView(web)
         web.loadUrl("file:///android_asset/web/index.html")
         web.requestFocus()
+        // Live app grid: new / removed / updated packages refresh the tiles immediately.
+        val f = android.content.IntentFilter().apply {
+            addAction(Intent.ACTION_PACKAGE_ADDED); addAction(Intent.ACTION_PACKAGE_REMOVED)
+            addAction(Intent.ACTION_PACKAGE_CHANGED); addAction(Intent.ACTION_PACKAGE_REPLACED); addDataScheme("package")
+        }
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(pkgRx, f, RECEIVER_EXPORTED) else registerReceiver(pkgRx, f)
         Adhan.ensureChannel(this)
         Adhan.scheduleNext(this)
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED)
@@ -75,5 +84,5 @@ class MainActivity : Activity() {
         return super.dispatchKeyEvent(e)
     }
 
-    override fun onDestroy() { bridge.shutdown(); instance = null; web.destroy(); super.onDestroy() }
+    override fun onDestroy() { try { unregisterReceiver(pkgRx) } catch (_: Exception) {}; bridge.shutdown(); instance = null; web.destroy(); super.onDestroy() }
 }
