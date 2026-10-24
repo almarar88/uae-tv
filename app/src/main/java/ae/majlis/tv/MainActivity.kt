@@ -38,7 +38,7 @@ class MainActivity : ComponentActivity() {
             BackHandler {
                 when {
                     s.moving != null -> s.moving = null
-                    s.tab != 0 -> s.tab = 0
+                    s.tab != 0 -> s.goHome()
                     else -> {} // launcher: Back on Home stays Home
                 }
             }
@@ -53,7 +53,7 @@ class MainActivity : ComponentActivity() {
     /** HOME pressed while we are the launcher → back to the Home tab with overlays closed. */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        if (intent.hasCategory(Intent.CATEGORY_HOME) || intent.action == Intent.ACTION_MAIN) { s.routes.clear(); s.moving = null; s.tab = 0 }
+        if (intent.hasCategory(Intent.CATEGORY_HOME) || intent.action == Intent.ACTION_MAIN) s.goHome()
     }
     override fun dispatchKeyEvent(e: KeyEvent): Boolean {
         if ((e.keyCode == KeyEvent.KEYCODE_SEARCH || e.keyCode == KeyEvent.KEYCODE_ASSIST) && e.action == KeyEvent.ACTION_UP) { s.routes.clear(); s.tab = 7; listen(); return true }

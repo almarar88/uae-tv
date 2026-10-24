@@ -66,7 +66,7 @@ fun NewsTab(s: AppState) {
     PivotColumn {
         item("cats") {
             LazyRow(Modifier.focusRestorer(), contentPadding = PaddingValues(horizontal = SafeH, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(News.CATS) { c -> Pill(c, { s.newsCat = c }, selected = c == s.newsCat) }
+                items(News.CATS.filter { c -> c == "الكل" || all.any { it.cat == c } }) { c -> Pill(c, { s.newsCat = c }, selected = c == s.newsCat) }
             }
         }
         if (urgent != null) item("urgent") {
@@ -129,7 +129,7 @@ private fun NewsDetail(s: AppState, n: NewsItem) {
             }
         } }
         item { ReadRow(Pad) { Text(n.desc.ifEmpty { "لا يوجد ملخص في الخلاصة." }, style = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Content)) } }
-        item { Small("المصدر: ${n.src}${if (n.link.isNotEmpty()) " — " + n.link else ""}", Pad) }
+        item { Small("المصدر: ${n.src}", Pad) }
     }
     LaunchedEffect(Unit) { try { fr.requestFocus() } catch (_: Exception) {} }
 }
@@ -448,7 +448,7 @@ private fun Credits(s: AppState) {
         item { Column(Pad) { H("الحقوق والمصادر"); Sadu(Modifier.padding(vertical = 8.dp)) } }
         item { ReadRow(Pad.focusRequester(fr)) { Text("من مؤسسة الكود. مفتوح المصدر (MIT).", style = MaterialTheme.typography.bodyLarge) } }
         items(s.photos) { p -> ReadRow(Pad) { Column { Text(p.ar, style = MaterialTheme.typography.titleSmall); Small("${p.artist} · ${p.license} · Wikimedia Commons") } } }
-        item { ReadRow(Pad) { Text("القرآن الكريم: نص مشروع تنزيل (tanzil.net). التفسير: alquran.cloud. الطقس: Open-Meteo.com (CC BY 4.0). كرة القدم: TheSportsDB.com. الأخبار: الإمارات اليوم، سكاي نيوز عربية، The National. الخطوط: Noto Kufi Arabic وNoto Naskh Arabic وAmiri Quran (SIL OFL).", style = MaterialTheme.typography.bodyMedium) } }
+        item { ReadRow(Pad) { Text("القرآن الكريم: نص مشروع تنزيل (tanzil.net). التفسير: alquran.cloud. الطقس: Open-Meteo.com (CC BY 4.0). كرة القدم: TheSportsDB.com. الأخبار: ${s.news?.map { it.src }?.distinct()?.joinToString("، ")?.ifEmpty { null } ?: "الإمارات اليوم، The National"} (تُخفى المصادر غير المتاحة). الخطوط: Noto Kufi Arabic وNoto Naskh Arabic وAmiri Quran (SIL OFL).", style = MaterialTheme.typography.bodyMedium) } }
     }
     LaunchedEffect(Unit) { try { fr.requestFocus() } catch (_: Exception) {} }
 }

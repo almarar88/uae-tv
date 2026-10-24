@@ -69,6 +69,15 @@ fun AlcodeApp(s: AppState, onVoice: () -> Unit) {
 
 @Composable
 private fun TopBar(s: AppState) {
+    val frs = remember { List(s.tabs.size) { FocusRequester() } }
+    // Focus starts on the selected tab (Home), and returns there when Back/HOME resets the tab.
+    var ready by remember { mutableStateOf(false) }
+    LaunchedEffect(s.homeReset) {
+        ready = false; s.tab = 0
+        // the framework's default initial focus may land on any tab; ignore it until we've placed focus on Home
+        repeat(10) { kotlinx.coroutines.delay(60); try { frs[0].requestFocus() } catch (_: Exception) {} }
+        ready = true
+    }
     Row(Modifier.fillMaxWidth().padding(start = SafeH, end = SafeH, top = SafeV - 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Image(painterResource(R.drawable.splash_logo), null, Modifier.size(40.dp, 34.dp), contentScale = ContentScale.Fit)
         Spacer(Modifier.width(18.dp))
@@ -78,7 +87,7 @@ private fun TopBar(s: AppState) {
             indicator = { pos, focused -> TabRowDefaults.PillIndicator(currentTabPosition = pos[s.tab], doesTabRowHaveFocus = focused, activeColor = C.Text, inactiveColor = C.Gold.copy(alpha = .25f)) },
         ) {
             s.tabs.forEachIndexed { i, t ->
-                Tab(selected = i == s.tab, onFocus = { s.tab = i }, onClick = { s.tab = i },
+                Tab(modifier = Modifier.focusRequester(frs[i]), selected = i == s.tab, onFocus = { if (ready) s.tab = i }, onClick = { s.tab = i },
                     colors = TabDefaults.pillIndicatorTabColors(contentColor = C.Dim, selectedContentColor = C.Text, focusedContentColor = C.Bg, focusedSelectedContentColor = C.Bg)) {
                     Text(t, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp))
                 }
@@ -92,7 +101,7 @@ private fun TopBar(s: AppState) {
 private fun HomeTab(s: AppState, photo: Photo) {
     Column(Modifier.fillMaxSize()) {
         Hero(s, photo)
-        val vSpec = rememberPivot(0.dp, rtlAxis = false)
+        val vSpec = rememberPivot(44.dp, rtlAxis = false)
         val picks = remember(s.now, s.apps, s.favs, s.football, s.prefsRev) { s.picks() }
         val vod = remember(s.poets) { PoetryRepo.verseOfDay(s.poets) }
         CompositionLocalProvider(LocalBringIntoViewSpec provides vSpec) {
@@ -112,10 +121,10 @@ private fun HomeTab(s: AppState, photo: Photo) {
 @Composable
 private fun Hero(s: AppState, photo: Photo) {
     val np = remember(s.now, s.prefsRev) { s.nextPrayer() }
-    Column(Modifier.fillMaxWidth().height(186.dp).padding(horizontal = SafeH).padding(top = 14.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = SafeH).padding(top = 6.dp, bottom = 10.dp)) {
         Text(Fmt.greeting(s.now), style = MaterialTheme.typography.titleMedium, color = C.Sand)
         Row(verticalAlignment = Alignment.Bottom) {
-            Text(Fmt.time(s.c, s.now, ampm = false), style = MaterialTheme.typography.displayLarge, color = C.Text)
+            Text(Fmt.time(s.c, s.now, ampm = false), style = MaterialTheme.typography.displayLarge.copy(lineHeight = 78.sp, platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false)), color = C.Text)
             Spacer(Modifier.width(22.dp))
             Column(Modifier.padding(bottom = 16.dp)) {
                 Text(Fmt.gregLine(s.now), style = MaterialTheme.typography.titleSmall, color = C.Text)

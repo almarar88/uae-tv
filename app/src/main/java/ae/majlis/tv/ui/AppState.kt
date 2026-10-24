@@ -41,6 +41,8 @@ data class Msg(val user: Boolean, val text: String, val ai: Boolean = false, val
 class AppState(app: Application) : AndroidViewModel(app) {
     val c = app.applicationContext
     val tabs = listOf("الرئيسية", "الأخبار", "الصلاة", "القرآن", "الشعر", "الطقس", "الدوري", "اسأل", "الإعدادات")
+    var homeReset by mutableIntStateOf(0)
+    fun goHome() { routes.clear(); moving = null; tab = 0; homeReset++ }
     var tab by mutableIntStateOf(0)
     val routes = mutableStateListOf<Route>()
     var prefsRev by mutableIntStateOf(0)
