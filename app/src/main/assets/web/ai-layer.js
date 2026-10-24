@@ -234,7 +234,7 @@ function localIntent(q) { // offline / no-key fallback: rule-based Arabic intent
   if (/افتح|شغل|شغّل|open/.test(t) && app) return { tool: 'open_app', args: { pkg: app.pkg } };
   const ch = [...IP.live, ...IP.vod].find(x => x.name && low.includes(x.name.toLowerCase().replace(/ hd$/, '')));
   if (ch) return { tool: 'play_iptv', args: { query: ch.name } };
-  const sec = [['صلا|أذان|اذان', 'prayers'], ['طقس|جو', 'weather'], ['قرآن|قران|سورة', 'quran'], ['أخبار|اخبار|عاجل', 'news'], ['موجز', 'briefing'], ['إعداد|اعداد', 'settings'], ['رمضان|إمساك|امساك|إفطار|افطار', 'ramadan'], ['مختارات|أفلام|افلام|مسلسل', 'picks'], ['دوري|مباراة|مباريات', 'football'], ['الرئيسية|رجوع', 'home']];
+  const sec = [['صلا|أذان|اذان', 'prayers'], ['طقس|جو', 'weather'], ['قرآن|قران|سورة', 'quran'], ['شعر|قصيد|قصائد', 'poetry'], ['أخبار|اخبار|عاجل', 'news'], ['موجز', 'briefing'], ['إعداد|اعداد', 'settings'], ['رمضان|إمساك|امساك|إفطار|افطار', 'ramadan'], ['مختارات|أفلام|افلام|مسلسل', 'picks'], ['دوري|مباراة|مباريات', 'football'], ['الرئيسية|رجوع', 'home']];
   for (const [re, id] of sec) if (new RegExp(re).test(t)) return { tool: 'open_section', args: { id } };
   if (/ذكرني|ذكّرني/.test(t)) { const m = t.match(/(\d+)/); return { tool: 'remind', args: { minutes: m ? +m[1] : 10, text: t } }; }
   return null;
@@ -332,7 +332,7 @@ async function personalise() {
   }
   const sc = $('#home .scroller') || $('#home'); const rows = Object.fromEntries($$('#home .row[data-row]').map(r => [r.dataset.row, r]));
   const anchor = $('#home .row[data-row]'); const parent = anchor.parentNode;
-  o = Object.assign({}, o, { order: ['fav'].concat((o.order || []).filter(x => x !== 'fav')) });
+  o = Object.assign({}, o, { order: ['fav', 'verse'].concat((o.order || []).filter(x => x !== 'fav' && x !== 'verse')) });
   const seen = new Set(); o.order.filter(id => rows[id] && !seen.has(id) && seen.add(id)).concat(Object.keys(rows).filter(k => !seen.has(k))).forEach(id => parent.insertBefore(rows[id], $('#credit')));
   if (o.why) { const g = $('#greet'); g.dataset.why = o.why; }
 }
@@ -389,11 +389,11 @@ $('#ipClear').onclick = () => { A.iptvSet('', '', ''); renderSettings(); loadIpt
 (function addHubTile() { return; const t = document.createElement('div'); t.className = 'tv sec'; t.id = 'secPicks'; t.dataset.f = ''; t.dataset.act = 'picks'; t.tabIndex = -1; t.innerHTML = '<div class="art g-pck"><b>🎬</b><i class="gloss"></i></div><span class="lbl">مختاراتي</span>'; $('#secRow').prepend(t); })();
 
 /* icons: Streamline «Flex Line – Free» (see CREDITS.md) used as CSS masks so they take the text colour */
-const ICONSET = ['picks', 'news', 'prayers', 'quran', 'weather', 'assistant', 'briefing', 'football', 'ambient', 'translate', 'settings', 'kids'];
+const ICONSET = ['poetry', 'picks', 'news', 'prayers', 'quran', 'weather', 'assistant', 'briefing', 'football', 'ambient', 'translate', 'settings', 'kids'];
 const ICON = (a, fb) => ICONSET.includes(a) ? `<i class="ico" style="--ico:url(icons/${a}.svg)"></i>` : `<i>${fb}</i>`;
 /* ════════ tvOS-style top tab bar (sections + gear) ════════ */
 (function tabBar() {
-  const items = [['picks', '', 'مختاراتي'], ['news', '', 'الأخبار'], ['prayers', '', 'الصلاة'], ['quran', '', 'القرآن'], ['weather', '', 'الطقس'], ['football', '', 'الدوري'], ['assistant', '', 'اسأل ✦']];
+  const items = [['picks', '', 'مختاراتي'], ['news', '', 'الأخبار'], ['prayers', '', 'الصلاة'], ['quran', '', 'القرآن'], ['poetry', '', 'الشعر'], ['weather', '', 'الطقس'], ['football', '', 'الدوري'], ['assistant', '', 'اسأل ✦']];
   const nav = document.createElement('nav'); nav.id = 'tabs';
   nav.innerHTML = '<div class="tabs">' + items.map(([a, i, t]) => `<button class="tab${a === 'picks' || a === 'football' ? ' hidden' : ''}" ${a === 'picks' ? 'id="tabPicks"' : a === 'football' ? 'id="secFoot"' : ''} data-f data-act="${a}" tabindex="-1">${ICON(a, i)}<span>${t}</span></button>`).join('') + '</div><button class="tab gear" data-f data-act="settings" tabindex="-1" title="الإعدادات">' + ICON('settings', '⚙') + '</button>';
   nav.insertAdjacentHTML('afterbegin', '<img id="tbLogo" src="brand.png" alt="الكود">'); $('#home').prepend(nav);

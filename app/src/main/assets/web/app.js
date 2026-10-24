@@ -447,7 +447,8 @@ function renderCredits() {
 <b>الصور (Wikimedia Commons):</b><br>${PHOTOS.map(p => `• ${esc(p.ar)} — ${esc(p.artist)} — ${esc(p.license)}`).join('<br>')}<br>(تم قصّها وتصغيرها إلى 1920×1080؛ الروابط الكاملة في CREDITS.md)<br><br>
 <b>نص القرآن الكريم:</b> مشروع تنزيل Tanzil Quran Text (Uthmani) — tanzil.net — يُستخدم دون تعديل وفق شروطه.<br>
 <b>التفسير:</b> التفسير الميسر وتفسير الجلالين عبر واجهة alquran.cloud.<br>
-<b>الخطوط:</b> Noto Kufi Arabic وAmiri Quran — رخصة SIL Open Font License 1.1.<br>
+<b>الشعر:</b> كل بيت منقول حرفياً مع اسم مصدره (دائرة الثقافة والسياحة – أبوظبي poetry.dct.gov.ae، صحيفة البيان، حوايا، الإمارات اليوم، أرشيف الإنترنت)؛ القائمة الكاملة في data/poetry.json.<br>
+<b>الخطوط:</b> Noto Naskh Arabic وNoto Kufi Arabic وAmiri Quran — رخصة SIL Open Font License 1.1.<br>
 <b>الطقس:</b> Open-Meteo.com (CC BY 4.0). <b>كرة القدم:</b> TheSportsDB.com (الواجهة المجانية).<br>
 <b>الذكاء الاصطناعي:</b> ${esc(AIINFO.provider || '—')}.`;
 }

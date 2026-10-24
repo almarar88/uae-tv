@@ -54,3 +54,8 @@ All motion uses transform and opacity only. The only blur is a static `backdrop-
 - Centred symmetry
 - Gradients as decoration
 - Logos as hero art
+
+## الشعر (1.3.0)
+- Poems are the one centred layout besides Qur'an text: صدر on the right and عجز on the left, both hugging a 96px gutter. Text is Naskh, titles Kufi, with a gold sadu ornament under the title.
+- Liwa dusk (`bg/liwa.jpg`) sits under a heavy charcoal scrim. The poet list is names only, with no portraits. The source is shown at 15px in --txt3.
+- «بيت اليوم» is the row after favourites, and the same verse is shown on the screensaver. It is picked deterministically per UAE day from hand-picked sourced wisdom bayts, never generated.

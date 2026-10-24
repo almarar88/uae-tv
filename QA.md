@@ -1,4 +1,23 @@
-# QA log — الكود 1.2.1
+# QA log — الكود 1.3.0 (الشعر)
+
+Self-QA was done in the browser preview (tools/preview, headless Chrome over CDP at 1920×1080, and a 720p run at DPR ⅔). It covered the «الشعر» tab, the poet list, the poem view, the home «بيت اليوم» card, the ambient verse, D-pad focus and back paths, and RTL. Screenshots are in `shots/v1.3/`.
+
+- [x] **Brand check:** `tools/qa/brand-check.sh` → **PASS** (after two fixes below).
+- [x] versionCode 5, versionName 1.3.0, signed with the release key (SHA-256 883397f1…6f86a).
+- [x] Every verse is verbatim from a fetched source. `tools/poetry/build.py` checks every hemistich against the fetched page text and fails the build otherwise. Only kashida, footnote numbers and a stray trailing dash are removed. No verse is AI-generated or typed by hand.
+- [x] Each poem and bio shows its source in small text. Credits list the poetry sources.
+
+| Screen / state | Found | Fixed | Notes |
+|---|---|---|---|
+| Brand check | 2 | 2 | «شعار» matched inside «أشعار» (a Zayed article title in a note, and the Majidi bio). Both reworded; verses untouched |
+| Poem view | 1 | 1 | `#poem {display:flex}` overrode `.layer` hiding, so the poem sat over every panel (now `.active` only) |
+| Poet list | 1 | 1 | 7th poet clipped at 1080p; tighter rows, last row inside the safe area at 1080p and 720p |
+| Poem cards | 2 | 2 | first bayt wrapped mid-hemistich in the narrow card (now stacked); «2 أبيات» → «بيتان» |
+| Focus / back | 3 | 3 | Back from a poem lost the card that opened it (poet list and home card); → from poem cards jumped to the nearest poet instead of the shown one |
+| Data | 3 | 3 | Khidr parse picked up a footnote line; trailing «-» in one MBR hemistich; one wisdom index pointed to the wrong bayt |
+| Empty state | 0 | 0 | No data → «لا تتوفر قصائد حالياً», no home card, no ambient verse (code path reviewed) |
+
+# QA log — الكود 1.2.1 (previous)
 
 Self-QA was done in the browser preview (tools/preview, Chrome at 1920×1080, plus a 720p run at DPR ⅔, a 4K run at DPR 2, and an offline run). It was repeated until a full pass had no open issues.
 

@@ -55,3 +55,9 @@ The AI explanation is grounded only in these texts and numbers its sources [1] a
 - **Font:** Noto Naskh Arabic by Google, SIL Open Font License 1.1.
 - **Artwork enrichment:** images and summaries come from Wikipedia/Wikimedia (CC BY-SA) and are shown only when the match is confident. They are always labelled «ويكيبيديا».
 - **App artwork:** comes from the installed apps themselves at runtime (TV banner or adaptive icon). The repository contains no third-party logos.
+
+## الشعر (1.3.0)
+Verses are quoted verbatim with the source shown in the app. Full list in `app/src/main/assets/web/data/poetry.json`:
+- Poetry Encyclopedia, Department of Culture and Tourism – Abu Dhabi (poetry.dct.gov.ae)
+- Al Bayan (albayan.ae), «من عيون الشعر الإماراتي» and a Feb 2018 article on Sheikh Zayed's poetry
+- 7awaya (7awaya.com), Emarat Al Youm (emaratalyoum.com), Internet Archive (archive.org)
