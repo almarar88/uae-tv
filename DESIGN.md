@@ -1,3 +1,24 @@
+# الكود — v2.0 native (Compose for TV)
+
+v2.0 replaces the WebView UI with Jetpack Compose and `androidx.tv:tv-material` 1.0. The «غسق ليوا» identity is unchanged. These are the native rules:
+
+- **Brand.** The logo only, with no wordmark and no tagline. Greetings are fixed. There is no «شاهد الآن» anywhere, which `tools/qa/brand-check.sh` enforces.
+- **Grid.** Everything is in dp. Overscan-safe margins are 48 dp horizontal and 27 dp vertical. Layout is forced RTL and fontScale is fixed at 1, so 1080p and 720p render the same 960×540 dp layout.
+- **Focus.**
+  - Standard tv-material Card focus scale (1.1) with a 3 dp ring, gold in move mode. No custom bounce or spring.
+  - A fixed-pivot `BringIntoViewSpec`: rows pin the focused card at the 48 dp edge and columns keep the row title visible.
+  - `focusRestorer` on every row.
+  - Screens open as full-screen dialogs, so Back returns to the exact opener.
+- **Motion.** None except the focus scale and the dream's 2.5 s photo crossfade. No parallax, Ken Burns or infinite animations.
+- **Home.**
+  - A calm hero with no button: greeting, clock, both dates, next prayer, weather and photo credit.
+  - Rows, in order: المفضلة (reorderable) → مختاراتي → Liwaiptv (only if configured) → بيت اليوم → كل التطبيقات.
+  - Back returns focus to the top.
+- **Images.** Coil, decoded at the slot size with memory and disk cache. No blur.
+- **Palette and type.** As below: charcoal, sand and one gold accent. Noto Kufi Arabic for UI, Noto Naskh Arabic for reading, and Amiri Quran for the Qur'an only.
+
+---
+
 # الكود TV — Art direction: «غسق ليوا» (Liwa Dusk)
 
 **The idea.** Picture the minute after sunset in the Liwa dunes. Photography carries the screen and typography speaks. The UI chrome stays quiet. This should read like a magazine spread you watch from the sofa, not a dashboard.

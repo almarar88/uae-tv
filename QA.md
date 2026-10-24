@@ -1,3 +1,78 @@
+# QA log — الكود 2.0.0 (native Compose for TV)
+
+**Harness.** The Android TV emulator (API 33 `android-tv` x86) was driven only by `adb shell input keyevent`. Scripts are in `tools/qa/` (`tv.sh`, `tabs.sh`, `flows.sh`, `flows2.sh`, `r720.sh`, `perf.sh`).
+
+KVM was enabled on the box (`/dev/kvm` set to 0666), but the guest kernel never started under nested KVM. The emulator therefore ran under **TCG (`-accel off`)**, which is roughly 10× slower than real hardware. All functional checks below are real. **All timing and jank numbers are non-representative** of a real TV.
+
+Screens were checked at 1920×1080 (density 320) and 1280×720 (density 213); both give a 960×540 dp layout. Screenshots are in `shots/v2.0/`. `tools/qa/brand-check.sh` returns PASS: no wordmark, no tagline and no «شاهد الآن» in `res/`, the manifest or Kotlin strings.
+
+## Found → fixed during emulator QA
+| # | Issue | Fix |
+|---|---|---|
+| 1 | The launcher opened on the **Settings** tab. Default initial focus landed on a random tab, and tabs switch on focus. | Focus is placed explicitly on «الرئيسية». Focus-driven tab switching is ignored until that is done. |
+| 2 | Crash on the first D-pad move: `IllegalStateException: Release should only be called once` (lazy-list pinning with `focusRestorer`, a foundation 1.7.5 bug). | compose-bom raised from 2024.10.01 to 2025.01.01. |
+| 3 | The hero's next-prayer and weather line was clipped by its fixed height. | The hero now wraps its content, and the clock has a trimmed line height. |
+| 4 | Vertical pivot hid the row title above the focused row. | The pivot lead is now 44 dp, so the title stays visible. |
+| 5 | Back on Home did nothing: focus deep in «كل التطبيقات» had no way back to the top. | Back on Home scrolls to the top and returns focus to the «الرئيسية» tab. Back on any other tab goes to Home. |
+| 6 | Settings: the value text was unreadable on the focused row (sand on sand). | ListItem colours now set focused content to charcoal on sand. |
+| 7 | Dialog panels sat off-centre, and the IPTV form's buttons ran off-screen. | Panels are centred on a scrim inside the safe area, with a 486 dp height cap and scrolling content. |
+| 8 | Update check on 2.0.0 said «لديك أحدث إصدار (1.3.1)». | It now shows the installed version. |
+| 9 | A news source that fails (Sky News returns 403 from some networks) could leave empty categories, and Credits listed a missing source. | Categories with no items are hidden. Credits lists only the sources that actually returned items. The 403 is swallowed per feed. |
+| 10 | The news detail page printed the full article URL. | It now shows the source name only. The «فتح الخبر في المتصفح» button appears only when a browser resolves. |
+
+## Verified on the emulator (keyevents)
+- **RTL focus.** «الرئيسية» is the right-most tab. DPAD_LEFT goes to the next tab and DPAD_RIGHT on Home does nothing. Rows start at the right edge, and LEFT moves to the next card.
+- **Pivot.** Horizontal rows keep the focused card at the 48 dp safe edge. Vertical lists keep the focused row's title visible. No overshoot or bounce, because the scale is the standard tv-material Card scale.
+- **Focus restore.**
+  - News list → detail → Back returns to the same story.
+  - Qur'an grid → سورة البقرة → آية ٢ → tafsir → Back → Back returns to verse 2, then to the البقرة tile.
+  - Back on Home returns to the top.
+- **Favourites.**
+  - Long-press opens the app menu: فتح / إزالة من المفضلة / تحريك داخل المفضلة / معلومات التطبيق.
+  - Move mode highlights the card in gold and the title changes to «حرّك بالأسهم ثم اضغط موافق». LEFT moves the card one place later (RTL) and OK saves the order.
+  - Verified order: Play Games ↔ Play Store swapped.
+- **Tabs (all 9 rendered with live data).**
+  - الأخبار: 3 feeds including Sky News on the emulator network, plus the «عاجل» strip.
+  - الصلاة: Abu Dhabi times and countdown.
+  - القرآن: 114 suras, the reader in Amiri Quran, and tafsir from Muyassar + Jalalayn, both credited.
+  - الشعر: poet list, poem grid and poem view.
+  - الطقس: Open-Meteo, 7 days.
+  - الدوري: ADNOC Pro League upcoming fixtures, results and table.
+  - اسأل: chips.
+  - الإعدادات: all rows, the city chooser and the IPTV form.
+- **Arabic shaping.** Kufi/Naskh joining is correct. Qur'an text shows Uthmani marks and end-of-āyah numerals. Mixed Arabic/English headlines align by their own direction.
+- **Dream.** Set as the system screensaver via Somnambulator: credited photo, clock, both dates, next prayer and the verse of the day (`1080-dream.png`).
+- **720p.** Identical dp layout, with nothing clipped and no overscan intrusion (`720-*.png`).
+
+## Every tile and button → action
+| Where | Element | Action (verified ✓ / code-reviewed •) |
+|---|---|---|
+| Top bar | 9 tabs | Focus switches tab ✓ |
+| Home | Hero | Not focusable, by design (no button) ✓ |
+| Home | المفضلة card | OK launches the app ✓ (Play Store opened). Long-press opens the menu ✓ |
+| Home | Empty-favourites hint card | Toast explaining how to add favourites • |
+| App menu | فتح / إضافة·إزالة المفضلة / تحريك / معلومات التطبيق | Launch ✓ / toggle + toast ✓ / move mode ✓ / system App Info • |
+| Home | مختاراتي: موجز اليوم | Opens اسأل and requests the daily brief (needs an AI key) • |
+| Home | مختاراتي: prayer within 25 min / today's match / usage apps | Opens الصلاة / الدوري / launches the app • |
+| Home | Liwaiptv row (only when configured) | Opens the IPTV hub; channels play via the Liwaiptv/system player • (no test credentials) |
+| Home | بيت اليوم card | Opens the poem view ✓ |
+| Home | كل التطبيقات tiles | Launch ✓; long-press opens the menu • |
+| News | Category pills | Filter ✓ (empty categories hidden) |
+| News | Story row → detail | ✓; «فتح الخبر في المتصفح» only if a browser exists; «رجوع» ✓ |
+| News | «إعادة المحاولة» (shown on failure) | Reloads • |
+| Prayer | المدينة / تنبيه الأذان / تجربة التنبيه | Chooser • / toggle ✓ / posts a test notification • |
+| Qur'an | Sura tile → reader → āyah → tafsir | ✓ ✓ ✓; «✦ اشرح بلغة مبسطة» uses the tafsir text only (needs AI) • |
+| Poetry | Poet → poem tile → poem view | ✓ |
+| Weather | المدينة / تحديث | Chooser • / reload • |
+| League | Rows / تحديث | Read-only focusable rows ✓ / reload • |
+| Ask | اكتب سؤالك / تحدّث / chips / مسح | Text panel • / voice recogniser (SEARCH key too) • / ask • / clear • |
+| Settings | Each row | City chooser ✓, adhan toggle ✓, 12/24h •, background •, AI key / model •, IPTV form ✓, update check ✓, install update •, screensaver settings •, device settings •, credits • |
+
+## Performance (non-representative: TCG emulator, no GPU acceleration)
+See `shots/v2.0/gfxinfo-1080-home.txt` and the soak section below.
+
+---
+
 # QA log — الكود 1.3.1 (news screen, freeze fix, more poetry)
 
 Harness: tools/preview (real live feeds: Sky News Arabia, Emarat Al Youm, The National; real Play icons) in headless Chrome. Screens were checked at 1920×1080, 1280×720 and 3840×2160, plus a 5% overscan crop. Screenshots are in `shots/v1.3.1/`. The "before" set in `shots/v1.3.1/before/` was rebuilt from commit c1ad734 (1.3.0) in the same harness. `tools/qa/brand-check.sh`: PASS.
