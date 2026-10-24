@@ -1,3 +1,45 @@
+# QA log — الكود 1.3.1 (news screen, freeze fix, more poetry)
+
+Harness: tools/preview (real live feeds: Sky News Arabia, Emarat Al Youm, The National; real Play icons) in headless Chrome. Screens were checked at 1920×1080, 1280×720 and 3840×2160, plus a 5% overscan crop. Screenshots are in `shots/v1.3.1/`. The "before" set in `shots/v1.3.1/before/` was rebuilt from commit c1ad734 (1.3.0) in the same harness. `tools/qa/brand-check.sh`: PASS.
+
+## Freeze (top priority)
+- **Root cause.** 1.3.0 sent every app's icon/banner as a multi-MB base64 PNG through `evaluateJavascript` on the UI thread, and repeated that on every package-change broadcast. The main thread stalled and the renderer was flooded with decode work. Separately, the GPU was overloaded by stacked full-screen layers: blend modes, backdrop-filter, the sand canvas, root parallax and Ken Burns.
+- **Fix.**
+  - Tiles are rendered once per app version to `cache/tiles/` and served as small `https://alcode.local/tile/…` URLs from `shouldInterceptRequest` (WebView IO thread).
+  - Blur and backdrop-filter were removed. At most 2 background layers exist, and hidden layers release their images.
+  - Lite mode on low-end devices.
+  - Renderer priority IMPORTANT, `hardwareAccelerated=true`.
+  - Watchdog: the page beats every 5s; MainActivity reloads the page after 25s of silence while visible.
+  - `onRenderProcessGone` → `recreate()` instead of a dead white WebView.
+- **Soak.** 30 minutes at 6× CPU throttle, with random D-pad keys, screens opened and closed, and `onAppsChanged` storms. GC'd heap, DOM nodes, listeners and key latency were sampled every 2 minutes.
+  - Run 1 (code before the final polish): 8,067 keys. Heap 1.54 → 2.18 MB. DOM nodes 2,604 → ~3,400, flat from minute 2. Listeners flat at 94. Images flat at 112. Median key latency 46–55 ms, p90 120–171 ms. No crash, no hang.
+  - Run 2 (release code): SOAK2
+- **Perf (1920×1080, favourites row, 24 keys, 4× throttle).** Key→paint median 91.9 → 31.1 ms, p90 226.9 → 55.4 ms, max 265 → 201 ms. `setFocus` 4.0 ms median, 5.8 ms max. At 6×: median 56.6 ms.
+
+## Issues found → fixed (1.3.1)
+| Screen | Issue | Fix |
+|---|---|---|
+| Home | News ticker and news row on home; faded text, a lone «اقرأ», a stray dot | News moved to its own screen. The home hero is photo-only. One pager dot is hidden when there is a single pick. |
+| Home | Photo credit overlapped content | Credit is hidden on home; shown only on the screensaver and the credits screen |
+| Home | 8px strip of the page background above the hero | Hero now starts at y=0 |
+| Home | Tabs and clock unreadable on bright posters (e.g. Dune Part Two) | Static top scrim plus a stronger right scrim. No blur. |
+| Home | Hard edge between the hero and the rows; 1px bright seam at 720p | Static gradient hand-off (`#shFade`) layered above the hero. The seam is gone at 720p (pixel-checked). |
+| Home | Shelf art painted over the sticky tabs when scrolled; late `deep` state | Shelf isolated (z-index); tabs z 30 with a solid gradient; `deep` derived from focus synchronously |
+| Home | Back did nothing on home | Back now jumps to the top and focuses the first tab (Google TV guidance) |
+| Home | Stock/placeholder app banners (generic blue landscape) | Banner check: art shared by 2+ apps, or a flat blue frame with no text, falls back to the official-icon tile. Verified: no false positives on the 15 mock tiles or on synthetic blue wordmarks («Prime», «Disney+», «Shahid VIP»). |
+| News | Blurry or tiny images, blurred backgrounds | URLs are upgraded to ≥960px renditions. Images under 600px or failing to load are dropped and remembered (LRU of 300). A branded category placeholder is used otherwise. No blurred backgrounds. |
+| News | `scrollIntoView` shifted the whole layer and exposed a strip | Lists scroll their own box |
+| Viewport | Headless check window was 87px short (false letterbox in our own shots) | Harness fixed. 1080p capture is a true 1920×1080. |
+| Poetry | Verse card showed a title and the liwa background | One بيت plus poet plus source only, on a flat gradient |
+| Poetry | Data loaded at boot | Lazy load 1.2s after boot. Remote `poetry.json` fetched at most once a day, validated, and cached, with the bundled copy as fallback. Poems are paginated 6 at a time («المزيد»). |
+
+## Poetry counts (verbatim, scraped and cross-checked against the raw page; nothing written from memory)
+9 poets, 106 poems, 1,505 verses: الكندي 12/173, فتاة العرب 12/244, زايد 10/71, محمد بن راشد 12/181, ابن ظاهر 12/171, راشد الخضر 12/173, العقيلي 12/132, الجمري 12/180 (new), ابن ياقوت 12/180 (new). Sources are 7awaya.ae and the DCT poetry archive. Partial pages are labelled as excerpts. Poems containing «شعار» were skipped so the brand gate stays clean.
+
+## Needs real hardware
+- Watchdog reload and `onRenderProcessGone` cannot be triggered in headless Chrome. The code paths are in MainActivity.
+- Real overscan on Ahmed's TV.
+
 # QA log — الكود 1.3.0 (الشعر)
 
 Self-QA was done in the browser preview (tools/preview, headless Chrome over CDP at 1920×1080, and a 720p run at DPR ⅔). It covered the «الشعر» tab, the poet list, the poem view, the home «بيت اليوم» card, the ambient verse, D-pad focus and back paths, and RTL. Screenshots are in `shots/v1.3/`.

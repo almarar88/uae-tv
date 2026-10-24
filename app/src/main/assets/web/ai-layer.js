@@ -57,7 +57,7 @@ async function aiNews(pass = 0) {
 function newsCard(n, i) {
   return `<div class="tv nws" data-f data-news="${i}" tabindex="-1"><div class="art" style="--c1:${n.c};--c2:#0d0a06">${n.img ? `<img class="cov" src="${esc(n.img)}" onerror="this.remove()">` : ''}<div class="ntx"><em>${esc(n.cat)}</em><b dir="auto">${esc(n.title)}</b></div><i class="gloss"></i></div><span class="lbl">${esc(n.src)} · ${ago(n.t)}</span></div>`;
 }
-function renderNews() {
+function renderNews() { if (!$("#newsRow")) return;
   if (!NEWS.length) { $('#newsRow').innerHTML = '<div class="empty">تعذّر جلب الأخبار حالياً — تحقق من الاتصال</div>'; return; }
   const pick = KIDS() ? [] : NEWS.slice(0, 12);
   $('#newsRow').innerHTML = pick.map(n => newsCard(n, NEWS.indexOf(n))).join('');
@@ -333,7 +333,7 @@ async function personalise() {
   const sc = $('#home .scroller') || $('#home'); const rows = Object.fromEntries($$('#home .row[data-row]').map(r => [r.dataset.row, r]));
   const anchor = $('#home .row[data-row]'); const parent = anchor.parentNode;
   o = Object.assign({}, o, { order: ['fav', 'verse'].concat((o.order || []).filter(x => x !== 'fav' && x !== 'verse')) });
-  const seen = new Set(); o.order.filter(id => rows[id] && !seen.has(id) && seen.add(id)).concat(Object.keys(rows).filter(k => !seen.has(k))).forEach(id => parent.insertBefore(rows[id], $('#credit')));
+  const seen = new Set(); o.order.filter(id => rows[id] && !seen.has(id) && seen.add(id)).concat(Object.keys(rows).filter(k => !seen.has(k))).forEach(id => parent.appendChild(rows[id]));
   if (o.why) { const g = $('#greet'); g.dataset.why = o.why; }
 }
 // Greeting: a fixed, human-reviewed set by time of day (no generated text), plus an occasion line.

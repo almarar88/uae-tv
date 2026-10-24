@@ -110,7 +110,7 @@ function candidates() {
   IP.vod.slice(0, 4).forEach(x => { const it = ipItem('movie', x); c.push({ type: 'ip', it, id: 'movie' + it.id, title: it.name, img: it.back || '', why: 'أضيف حديثاً إلى اشتراكك' }); });
   IP.series.slice(0, 3).forEach(x => { const it = ipItem('series', x); c.push({ type: 'ip', it, id: 'series' + it.id, title: it.name, img: it.back || '', plot: it.plot, why: 'مسلسل محدّث' }); });
   if (CHG && CHG['أخبار'] && h >= 18 && h <= 22) { const x = CHG['أخبار'].items[0]; const it = ipItem('live', x); c.push({ type: 'ip', it, id: 'live' + it.id, title: it.name, img: '', why: 'نشرة المساء' }); }
-  if (NEWS[0]) c.push({ type: 'news', id: 'news', title: NEWS[0].title, img: NEWS[0].img, why: 'أبرز خبر الآن · ' + NEWS[0].src });
+  // 1.3.1: news never appears on Home (it has its own screen)
   APPS.slice(0, 2).forEach(a => c.push({ type: 'app', id: a.pkg, title: a.label, img: '', why: 'من تطبيقاتك المفضّلة' })); // never a wordmark as hero art
   return c;
 }

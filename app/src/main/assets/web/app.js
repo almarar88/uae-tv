@@ -74,6 +74,7 @@ function showBg(i) {
   const next = $('#bg' + (bgFlip ^ 1)), cur = $('#bg' + bgFlip);
   next.style.backgroundImage = `url('${ph.file}')`;
   next.classList.add('on'); cur.classList.remove('on'); bgFlip ^= 1;
+  clearTimeout(window._bgRel); window._bgRel = setTimeout(() => { if (!cur.classList.contains('on')) cur.style.backgroundImage = 'none'; }, 2500); // release the old decoded photo
   const c = `📷 ${esc(ph.ar)} — <bdi>${esc(ph.artist)}</bdi> · <bdi>${esc(ph.license)}</bdi> · <bdi>Wikimedia Commons</bdi>`;
   $('#credit').innerHTML = c; $('#amCredit').innerHTML = c;
 }
@@ -174,7 +175,7 @@ let APPS = [];
 /* tvOS-style tile: 16:9 rounded art, full-bleed banner or icon on a Palette-derived gradient. */
 const TINT = {};
 function tintFallback(a) { // JS dominant colour when the bridge did not supply one (preview / old builds)
-  return new Promise(res => { const im = new Image(); im.onload = () => { try {
+  return new Promise(res => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => { try {
     const cv = document.createElement('canvas'); cv.width = cv.height = 24; const g = cv.getContext('2d'); g.drawImage(im, 0, 0, 24, 24);
     const d = g.getImageData(0, 0, 24, 24).data, bins = {};
     for (let i = 0; i < d.length; i += 4) { if (d[i + 3] < 200) continue; const r = d[i], gg = d[i + 1], b = d[i + 2], mx = Math.max(r, gg, b), mn = Math.min(r, gg, b);
@@ -200,7 +201,7 @@ const GEAR = (() => { // finely detailed vector gear: 14 rounded teeth, machined
 <circle cx="100" cy="100" r="60" fill="none" stroke="rgba(0,0,0,.28)" stroke-width="1.2"/><circle cx="100" cy="100" r="52" fill="none" stroke="url(#gs)" stroke-width="5"/>${sp}
 <circle cx="100" cy="100" r="22" fill="url(#gm)" stroke="rgba(0,0,0,.25)" stroke-width="1"/><circle cx="100" cy="100" r="9" fill="#5f646c"/></svg>`;
 })();
-function loadImg(src) { return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; }); }
+function loadImg(src) { return new Promise((res, rej) => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => res(im); im.onerror = rej; im.src = src; }); }
 // Places an icon's logo on its own background colour, tvOS style. Returns a data URL or null if the icon is unusable.
 async function composeTile(src, minSide) {
   let im; try { im = await loadImg(src); } catch { return null; }
@@ -257,6 +258,7 @@ async function composeTile(src, minSide) {
 const TILES = {}; const TILE_V = 't16:';
 function tileArt(a) { // instant, synchronous source for the first paint
   if (SYS_SETTINGS.test(a.pkg)) return { cls: 'sys', html: GEAR };
+  if (a.banner && localStorage.getItem('gb1:' + a.pkg) === '1') a.banner = null; // known stock placeholder
   if (a.banner) return { cls: 'banner', src: a.banner };
   const c = TILES[a.pkg] || (TILES[a.pkg] = localStorage.getItem(TILE_V + a.pkg)); if (c) return { cls: 'banner', src: c };
   if (a.art) return { cls: 'banner', src: a.art };
@@ -277,8 +279,30 @@ async function upgradeTile(a) {
   $$(`.tv[data-pkg="${CSS.escape(a.pkg)}"] .art`).forEach(el => { el.className = 'art banner'; el.innerHTML = `<img src="${u}" alt=""><i class="gloss"></i>`; });
 }
 let tilesBusy = false;
+// Generic-banner guard: some apps ship a stock placeholder banner (e.g. the blue landscape template). Detect it cheaply
+// (32×18 sample, once per app, verdict cached) — identical art shared by ≥2 packages, or a flat low-detail blue frame —
+// and fall back to the official-icon brand tile instead.
+async function bannerSig(src) { const W = 160, H = 90, im = await loadImg(src); const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(im, 0, 0, W, H); const d = x.getImageData(0, 0, W, H).data;
+  let h = '', sr = 0, sg = 0, sb = 0, sl = 0, sl2 = 0, edge = 0, mx = 0, wh = 0; const L = [];
+  for (let i = 0; i < d.length; i += 4) { const l = .3 * d[i] + .59 * d[i + 1] + .11 * d[i + 2]; L.push(l); if (l > 235) wh++; sr += d[i]; sg += d[i + 1]; sb += d[i + 2]; sl += l; sl2 += l * l; }
+  for (let y = 0; y < H; y++) for (let x2 = 0; x2 < W - 1; x2++) { const a = L[y * W + x2], b = L[y * W + x2 + 1]; edge += Math.abs(a - b);
+    if (Math.max(a, b) > 200 && Math.abs(a - b) > 60) mx++; if (y % 5 === 0 && x2 % 20 === 0) h += a > b ? '1' : '0'; }
+  const n = L.length, m = sl / n, sd = Math.sqrt(Math.max(0, sl2 / n - m * m));
+  return { h, blueFlat: sb / n > sr / n + 25 && sb / n > sg / n && sd < 38 && edge / (H * (W - 1)) < 7 && mx < 4 && wh < n * .005 }; // mx/wh: no crisp white text or logo
+}
+async function checkBanners() {
+  const list = APPS.filter(a => a.banner && !SYS_SETTINGS.test(a.pkg)), sig = {};
+  for (const a of list) { const k = 'gb1:' + a.pkg, v = localStorage.getItem(k); if (v === '0') continue; if (v === '1') { a.banner = null; continue; }
+    try { sig[a.pkg] = await bannerSig(a.banner); } catch { } }
+  const by = {}; Object.entries(sig).forEach(([p, s]) => (by[s.h] = by[s.h] || []).push(p));
+  for (const a of list) { const s = sig[a.pkg]; if (!s) continue; const bad = s.blueFlat || by[s.h].length > 1;
+    try { localStorage.setItem('gb1:' + a.pkg, bad ? '1' : '0'); } catch { }
+    if (bad) { a.banner = null; const el = $$(`.tv[data-pkg="${CSS.escape(a.pkg)}"] .art`); el.forEach(e => { e.className = 'art init'; e.innerHTML = `<b>${esc(appInitials(a.label))}</b><i class="gloss"></i>`; }); } }
+}
 async function tintApps() { // name kept for callers: upgrades tiles that have no banner and no cached composition
   if (tilesBusy) return; tilesBusy = true;
+  try { await checkBanners(); } catch { }
   const todo = APPS.filter(a => !a.banner && !SYS_SETTINGS.test(a.pkg) && !TILES[a.pkg] && !localStorage.getItem(TILE_V + a.pkg));
   for (let i = 0; i < todo.length; i += 4) await Promise.all(todo.slice(i, i + 4).map(upgradeTile));
   tilesBusy = false;
@@ -475,11 +499,23 @@ function setFocus(el) {
   if (cur) { cur.classList.remove('focus'); cur.style.removeProperty('--nx'); }
   if (cur && el.classList.contains('tv')) { const a = cur.getBoundingClientRect(), b = el.getBoundingClientRect(); el.style.setProperty('--nx', Math.sign(b.left - a.left) || 0); el.style.setProperty('--ny', Math.sign(b.top - a.top) || 0); }
   cur = el; el.classList.add('focus');
-  if (el.classList.contains('tv')) { el.classList.remove('nudge'); void el.offsetWidth; el.classList.add('nudge'); }
   if (el.tagName === 'INPUT') el.focus(); else if (document.activeElement && document.activeElement.tagName === 'INPUT') document.activeElement.blur();
-  el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
-  if (el.closest('.grid')) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
-  if (stack.length === 1) { const row = el.closest('.row, #hero, #top'); if (row) row.scrollIntoView({ block: row.id === 'top' || row.id === 'hero' ? 'start' : 'center', behavior: 'smooth' }); }
+  scrollToEl(el);
+}
+// 1.3.1: one scroll per focus change, computed directly (no stacked smooth scrollIntoView calls).
+// Rows scroll inside their own strip; the page itself never scrolls sideways.
+function scrollToEl(el) {
+  const beh = LITE ? 'auto' : 'smooth';
+  const strip = el.closest('.strip'); if (strip) { const s = strip.getBoundingClientRect(), r = el.getBoundingClientRect(), k = s.width / strip.offsetWidth || 1, pad = 96 * k;
+    if (r.left < s.left + pad) strip.scrollBy({ left: (r.left - s.left - pad) / k, behavior: beh }); else if (r.right > s.right - pad) strip.scrollBy({ left: (r.right - s.right + pad) / k, behavior: beh }); }
+  if (stack.length === 1) { const home = $('#home'), row = el.closest('.row, #shelf, #tabs'); if (!row) return;
+    const top = row.id === 'tabs' || row.id === 'shelf' ? 0 : Math.max(0, row.offsetTop - 140); if (Math.abs(home.scrollTop - top) > 2) home.scrollTo({ top, behavior: beh }); return; }
+  const box = el.closest('.grid, #newsList, #nwList, #pmBody, #poeList, #verses, .scroll') || null;
+  // scroll only the list box itself — scrollIntoView would also shift overflow:hidden ancestors (the whole screen) and expose the bg
+  if (box) { const b = box.getBoundingClientRect(), r = el.getBoundingClientRect(), k = b.height / box.offsetHeight || 1, d = ((r.top + r.height / 2) - (b.top + b.height / 2)) / k;
+    if (Math.abs(d) > 2 && (r.top < b.top || r.bottom > b.bottom || Math.abs(d) > b.height / k / 4)) box.scrollBy({ top: d, behavior: beh }); return; }
+  el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: beh });
+  const L = el.closest('.layer'); if (L && L.scrollTop && getComputedStyle(L).overflowY === 'hidden') L.scrollTop = 0;
 }
 function focusFirst() { const f = focusables(); setFocus(f[0]); }
 function move(dir) {
@@ -513,6 +549,8 @@ function open(id) {
   cur = null; setTimeout(focusFirst, 30);
 }
 function back() {
+  // Google TV guidance: on the start screen Back returns to the top and focuses the menu (no exit gating)
+  if (stack.length === 1 && cur && !cur.closest('#tabs')) { const h = $('#home'); if (h) h.scrollTop = 0; const t = $('#tabs .tab:not(.hidden)'); if (t) { setFocus(t); return; } }
   if (stack.length > 1) { const prev = stack.pop(); const id = stack[stack.length - 1]; $$('.layer').forEach(l => l.classList.toggle('active', l.id === id)); document.body.classList.remove('amb'); cur = null; setTimeout(focusFirst, 30); if (A && A.stopSpeak) A.stopSpeak(); }
 }
 window.onBack = back;
@@ -545,12 +583,14 @@ document.addEventListener('keydown', e => {
     e.preventDefault(); if (k === 'ContextMenu') return startMove(cur);
     if (!e.repeat && !LP) { const el = cur; LP = setTimeout(() => { LP = 'fired'; startMove(el); }, 650); } return; }
   const inInput = document.activeElement && document.activeElement.tagName === 'INPUT';
+  if (e.repeat && k.startsWith('Arrow') && performance.now() - lastMove < 55) { e.preventDefault(); return; } // held button: fast but never queued
+  if (k.startsWith('Arrow')) lastMove = performance.now();
   if (k === 'ArrowLeft' || k === 'ArrowRight') { if (inInput && document.activeElement.value) return; move(k === 'ArrowLeft' ? 'left' : 'right'); e.preventDefault(); }
   else if (k === 'ArrowUp' || k === 'ArrowDown') { if (inInput) document.activeElement.blur(); move(k === 'ArrowUp' ? 'up' : 'down'); e.preventDefault(); }
   else if (k === 'Enter' || k === ' ' && !inInput) { if (inInput) { if (cur && cur.id === 'askIn') { ask(cur.value); cur.value = ''; } else document.activeElement.blur(); } else activate(cur); e.preventDefault(); }
   else if (k === 'Escape' || k === 'Backspace' && !inInput || k === 'GoBack' || k === 'BrowserBack') { back(); e.preventDefault(); }
 });
-let LP = null;
+let LP = null, lastMove = 0;
 document.addEventListener('keyup', e => { if (e.key === 'Enter' && LP) { if (LP !== 'fired') { clearTimeout(LP); activate(cur); } LP = null; } });
 document.addEventListener('click', e => { const t = e.target.closest('[data-f]'); if (t && !t.matches('button:not([data-pref])') ) { setFocus(t); activate(t); } else if (t) setFocus(t); });
 

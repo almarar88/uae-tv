@@ -25,6 +25,14 @@ import java.util.concurrent.Executors
 
 /** JavaScript ⇄ Android bridge. Every async call answers through window.__cb(id, ok, payload). */
 class Bridge(private val act: Activity, private val js: (String) -> Unit) {
+    companion object { const val IMG_BASE = "https://alcode.local/tile/" }
+    @Volatile var lastBeat = System.currentTimeMillis()
+    /** Watchdog heartbeat from the page (see MainActivity). */
+    @JavascriptInterface fun beat() { lastBeat = System.currentTimeMillis() }
+    @JavascriptInterface fun lowEnd(): Boolean {
+        val am = c.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        return am.isLowRamDevice || am.memoryClass <= 256 || Runtime.getRuntime().availableProcessors() <= 4
+    }
     private val c: Context = act.applicationContext
     private val pool = Executors.newFixedThreadPool(4)
     private var tts: TextToSpeech? = null
@@ -47,14 +55,26 @@ class Bridge(private val act: Activity, private val js: (String) -> Unit) {
             for (ri in pm.queryIntentActivities(i, 0)) {
                 val pkg = ri.activityInfo.packageName
                 if (pkg == c.packageName || !seen.add(pkg)) continue
-                val ic = hiResIcon(pm, ri) ?: ri.loadIcon(pm)
-                val banner = bannerFor(pm, ri, pkg)?.takeIf { goodBanner(it) }
-                val (c1, c2) = tint(ic)
-                val adaptive = if (banner == null) adaptiveArt(ic) else null
+                // 1.3.1: images go to disk once per app version and reach the page as small URLs
+                // (1.3.0 sent multi-MB base64 PNGs for every app through evaluateJavascript on the UI thread → freeze).
+                val ver = try { pm.getPackageInfo(pkg, 0).lastUpdateTime } catch (_: Exception) { 0L }
+                val key = "$pkg-$ver"; val meta = File(tileDir(), "$key.json")
+                val m = if (meta.exists()) JSONObject(meta.readText()) else {
+                    val ic = hiResIcon(pm, ri) ?: ri.loadIcon(pm)
+                    val banner = bannerFor(pm, ri, pkg)?.takeIf { goodBanner(it) }
+                    val (c1, c2) = tint(ic)
+                    val adaptive = if (banner == null) adaptiveArt(ic) else null
+                    tileDir().listFiles { f -> f.name.startsWith("$pkg-") }?.forEach { it.delete() }
+                    JSONObject().put("c1", c1).put("c2", c2)
+                        .put("icon", save("$key-i.png", draw(ic, 192, 192), true))
+                        .put("banner", banner?.let { save("$key-b.webp", draw(it, 640, 360), false) } ?: "")
+                        .put("art", adaptive?.let { save("$key-a.webp", it, false) } ?: "")
+                        .also { meta.writeText(it.toString()) }
+                }
                 out.put(JSONObject().put("pkg", pkg).put("label", ri.loadLabel(pm).toString())
-                    .put("icon", png(ic, 192, 192)).put("c1", c1).put("c2", c2)
-                    .put("banner", banner?.let { png(it, 960, 540) } ?: "")
-                    .put("art", adaptive ?: "")
+                    .put("icon", m.optString("icon")).put("c1", m.optString("c1")).put("c2", m.optString("c2"))
+                    .put("banner", m.optString("banner"))
+                    .put("art", m.optString("art"))
                     .put("sys", (ri.activityInfo.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0)
                     .put("tv", cat == Intent.CATEGORY_LEANBACK_LAUNCHER))
             }
@@ -84,10 +104,17 @@ class Bridge(private val act: Activity, private val js: (String) -> Unit) {
         }
     } catch (_: Exception) { true }
     /** Adaptive icon → 16:9 tile at 960x540: solid brand background, foreground logo ~55% of the width, no box-in-a-box. */
-    private fun adaptiveArt(d: Drawable): String? {
+    fun tileDir() = File(c.cacheDir, "tiles").apply { mkdirs() }
+    private fun draw(d: Drawable, w: Int, h: Int): Bitmap { val b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888); d.setBounds(0, 0, w, h); d.draw(Canvas(b)); return b }
+    @Suppress("DEPRECATION")
+    private fun save(name: String, b: Bitmap, png: Boolean): String {
+        File(tileDir(), name).outputStream().use { b.compress(if (png) Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.WEBP, if (png) 100 else 90, it) }
+        b.recycle(); return "$IMG_BASE$name"
+    }
+    private fun adaptiveArt(d: Drawable): Bitmap? {
         if (Build.VERSION.SDK_INT < 26 || d !is android.graphics.drawable.AdaptiveIconDrawable) return null
         return try {
-            val w = 960; val h = 540
+            val w = 640; val h = 360
             val b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888); val cv = Canvas(b)
             d.background?.let { bg ->
                 val sq = Bitmap.createBitmap(216, 216, Bitmap.Config.ARGB_8888); bg.setBounds(0, 0, 216, 216); bg.draw(Canvas(sq))
@@ -95,15 +122,14 @@ class Bridge(private val act: Activity, private val js: (String) -> Unit) {
             }
             // the logo lives in the central 72/108 of the layer; size the layer so that zone ≈ 55% of the tile width
             d.foreground?.let { fg -> val s = (w * 0.55 * 108 / 72).toInt(); val l = (w - s) / 2; val t = (h - s) / 2; fg.setBounds(l, t, l + s, t + s); fg.draw(cv) }
-            val bo = ByteArrayOutputStream(); b.compress(Bitmap.CompressFormat.PNG, 100, bo)
-            "data:image/png;base64," + Base64.encodeToString(bo.toByteArray(), Base64.NO_WRAP)
+            b
         } catch (_: Exception) { null }
     }
     /** Official hi-res icon from the app's Google Play listing (og:image, requested at 1024px), cached on disk.
      *  Returns the raw icon as a data URL; the web layer composes the tvOS tile from it. */
     @JavascriptInterface fun playIcon(id: String, pkg: String) = async(id) {
         require(Regex("^[A-Za-z0-9_.]+$").matches(pkg))
-        val dir = File(c.cacheDir, "playicons").apply { mkdirs() }; val f = File(dir, "$pkg.png")
+        val dir = tileDir(); val f = File(dir, "play-$pkg.png")
         if (!f.exists() || System.currentTimeMillis() - f.lastModified() > 30L * 86400000) {
             // TV builds often have their own id with no listing; try the phone listing of the same app too
             val ids = linkedSetOf(pkg, pkg.removeSuffix(".tv"), pkg.removeSuffix(".androidtv"), pkg.removeSuffix(".tv.android"), pkg.removeSuffix(".livingroom"))
@@ -116,7 +142,7 @@ class Bridge(private val act: Activity, private val js: (String) -> Unit) {
             if (bmp.width < 512) throw RuntimeException("low-res")
             f.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
         }
-        "data:image/png;base64," + Base64.encodeToString(f.readBytes(), Base64.NO_WRAP)
+        "$IMG_BASE${f.name}"
     }
     /** Dominant / vibrant colours of the icon (AndroidX Palette) → tvOS-style tile gradient. */
     private fun tint(d: Drawable): Pair<String, String> = try {

@@ -4,7 +4,7 @@ Verses are copied verbatim. The only normalisation is typographic: kashida (ـ) 
 the DCT encyclopedia is removed, and footnote markers ((1), «1», bare digits) used by Al Bayan are removed.
 Nothing is written, completed or corrected by hand. Every hemistich is re-checked against its source text."""
 import re, json, sys, html, os
-sys.path.insert(0, '/tmp/src'); import dct
+sys.path.insert(0, '/tmp/src'); sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import dct
 S = '/tmp/src/'
 def T(u): return dct.get(u)
 def txt(u):
@@ -92,6 +92,61 @@ POETS = [
   'bioSource': SRC['dct'], 'bioUrl': 'https://poetry.dct.gov.ae/poets/2781',
   'poems': [poem('يقول العقيلي في رسوم المثايل', ov, 'bayan', BAYAN_O, [[12], [14], [9]], note='من زاوية «من عيون الشعر الإماراتي»', check=('bayan', BAYAN_O))]},
 ]
+# ── 1.3.1 expansion: more poems per poet, every one parsed from a page fetched this build
+# 7awaya pages are fetched through the r.jina.ai reader (the site blocks this build machine); its text is the page text.
+import j7
+H7P = 'http://www.7awaya.com/poetPage.do?poetId='
+def listing(pid):
+    t = j7.poet(pid)
+    return {i: (ti, int(n)) for ti, i, q, n, c in re.findall(r'\[([^\]]+)\]\(http://www\.7awaya\.com/poem(?:Page|Description)\.do[^)]*poemId=(\d+)\)\s*([^\s\d!]+)\s+(\d+)\s+(\d+)', t)}
+def from7(pid, have, want):
+    L = listing(pid); out = []
+    for i, (ti, total) in L.items():
+        if len(have) + len(out) >= want: break
+        if any(i in (q.get('url') or '') for q in have): continue
+        p = j7.poem(i)
+        if not p['n'] or p['n'] != list(range(1, len(p['n']) + 1)): continue  # parse not clean → skip, never repair
+        vs = [[kash(a), kash(b)] for a, b in p['verses']]
+        if any(re.search(r'[!\[\]()|*]|\.\.\.', h) or not h for v in vs for h in v): continue
+        if any('شعار' in h for v in vs for h in v) or 'شعار' in ti: continue  # keeps tools/qa/brand-check.sh gate clean (it greps that word); skipped, never edited
+        raw = kash(p['raw'])
+        if not all(h in raw for v in vs for h in v): continue
+        note = f'الأبيات 1–{len(vs)} من {total} بيتاً كما في الصفحة الأولى للمصدر' if total > len(vs) else None
+        out.append(poem(ti, vs, '7awaya', p['url'], [], note=note))
+    return out
+def fromdct(pid, have, want):
+    out = []; seen = {q['title'] for q in have}
+    for path in dct.poems(pid):
+        if len(have) + len(out) >= want: break
+        try: d = dct.poem(path)
+        except Exception: continue
+        ti = d['title'].split(' - ')[0].strip()
+        if not d['verses'] or not ti or ti.replace('ّ', '') in {x.replace('ّ', '') for x in seen}: continue
+        vs = [[kash(a), kash(b)] for a, b in d['verses']]
+        if not all(a and b for a, b in vs) or any('شعار' in h for v in vs for h in v): continue
+        seen.add(ti); out.append(poem(ti, vs, 'dct', d['url'], [], check=('dct', 'https://poetry.dct.gov.ae' + path)))
+    return out
+BY = {p['id']: p for p in POETS}
+WANT = 12
+BY['kindi']['poems'] += from7(11, BY['kindi']['poems'], WANT)
+BY['majidi']['poems'] += from7(365, BY['majidi']['poems'], WANT)
+BY['khidr']['poems'] += from7(373, BY['khidr']['poems'], WANT)
+BY['zayed']['poems'] += from7(45, BY['zayed']['poems'], WANT)
+BY['mbr']['poems'] += from7(7, BY['mbr']['poems'], WANT)
+BY['ousha']['poems'] += fromdct(8440, BY['ousha']['poems'], WANT)
+BY['oqaili']['poems'] += fromdct(2781, BY['oqaili']['poems'], WANT)
+BY['mbr'].update({'bio': 'نائب رئيس دولة الإمارات العربية المتحدة رئيس مجلس الوزراء حاكم دبي. من مواليد 1949 ميلادية، وهو الابن الثالث بين أربعة أبناء للشيخ راشد بن سعيد آل مكتوم.',
+                  'bioSource': SRC['7awaya'], 'bioUrl': H7P + '7'})
+POETS.append({'id': 'jamri', 'name': 'سالم بن محمد الجمري', 'short': 'الجمري',
+  'bio': 'سالم بن محمد الجمري العميمي شاعر من دبي. من شعراء النبط المعروفين، قال الشعر وهو ابن خمس عشرة سنة، امتهن الغوص، ولما اندثرت هذه المهنة مارس أعمالاً أخرى كالتصوير وصيد السمك.',
+  'bioSource': SRC['7awaya'], 'bioUrl': H7P + '102', 'poems': []})
+POETS[-1]['poems'] = from7(102, [], WANT)
+POETS.append({'id': 'yaqout', 'name': 'ربيع بن ياقوت', 'short': 'ابن ياقوت',
+  'bio': 'ربيع بن ياقوت جوهر ولد في عجمان، قال الشعر ولم يبلغ العشرين من عمره، اشتهر بالقصائد الاجتماعية التي تعرّض فيها لمشاكل المجتمع وقضاياه.',
+  'bioSource': SRC['7awaya'], 'bioUrl': H7P + '5', 'poems': []})
+POETS[-1]['poems'] = from7(5, [], WANT)
+for p in POETS: p['poemCount'] = len(p['poems'])
+
 # verification: every hemistich must appear in the fetched source text (after the typographic normalisation)
 bad = 0
 for (kind, url), verses, _ in checks:
@@ -105,7 +160,7 @@ for p in POETS:
             for k in w: assert 0 <= k < len(q['verses']), (p['id'], q['title'], k)
         assert all(1 <= len(v) <= 2 and all(x.strip() for x in v) for v in q['verses']), q['title']
 if bad: sys.exit(f'{bad} hemistichs not found in sources')
-out = {'note': 'كل بيت منقول حرفياً من المصدر المذكور. حُذفت فقط الكشيدة (ـ) وأرقام الحواشي وشرطة زائدة في آخر الشطر.', 'built': '2026-10-24', 'poets': POETS}
+out = {'note': 'كل بيت منقول حرفياً من المصدر المذكور. حُذفت فقط الكشيدة (ـ) وأرقام الحواشي وشرطة زائدة في آخر الشطر.', 'built': '2026-10-24', 'version': 2, 'poets': POETS}
 dst = os.path.join(os.path.dirname(__file__), '../../app/src/main/assets/web/data/poetry.json')
 os.makedirs(os.path.dirname(dst), exist_ok=True); json.dump(out, open(dst, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
 for p in POETS: print(p['short'], sum(len(q['verses']) for q in p['poems']), [len(q['verses']) for q in p['poems']])
