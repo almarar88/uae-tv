@@ -27,6 +27,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
 import ae.majlis.tv.R
@@ -105,7 +106,9 @@ private fun HomeTab(s: AppState, photo: Photo) {
         val picks = remember(s.now, s.apps, s.favs, s.football, s.prefsRev) { s.picks() }
         val vod = remember(s.poets) { PoetryRepo.verseOfDay(s.poets) }
         CompositionLocalProvider(LocalBringIntoViewSpec provides vSpec) {
-            LazyColumn(Modifier.fillMaxSize().focusRestorer(), contentPadding = PaddingValues(bottom = 140.dp)) {
+            val ls = rememberLazyListState()
+            LaunchedEffect(s.homeReset) { ls.scrollToItem(0) }
+            LazyColumn(Modifier.fillMaxSize().focusRestorer(), state = ls, contentPadding = PaddingValues(bottom = 140.dp)) {
                 item("fav") { FavRow(s) }
                 if (picks.isNotEmpty()) item("picks") { PicksRow(picks) }
                 if (s.iptv) item("iptv") { IptvRow(s) }

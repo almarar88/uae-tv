@@ -39,7 +39,7 @@ class MainActivity : ComponentActivity() {
                 when {
                     s.moving != null -> s.moving = null
                     s.tab != 0 -> s.goHome()
-                    else -> {} // launcher: Back on Home stays Home
+                    else -> s.homeReset++ // launcher: Back on Home returns focus to the top (Home tab)
                 }
             }
             AlcodeApp(s) { listen() }

@@ -404,7 +404,8 @@ fun SettingsTab(s: AppState) {
     var updInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     val rev = s.prefsRev
     @Composable fun row(title: String, value: String, act: () -> Unit) = ListItem(selected = false, onClick = act, modifier = Pad,
-        headlineContent = { Text(title, style = MaterialTheme.typography.titleSmall) }, trailingContent = { Text(value, style = MaterialTheme.typography.labelLarge, color = C.Sand) })
+        colors = androidx.tv.material3.ListItemDefaults.colors(contentColor = C.Text, focusedContentColor = C.Bg, focusedContainerColor = C.Sand),
+        headlineContent = { Text(title, style = MaterialTheme.typography.titleSmall) }, trailingContent = { Text(value, style = MaterialTheme.typography.labelLarge) })
     PivotColumn {
         item { row("المدينة", s.city().ar) { dlg = "city" } }
         item { val on = s.pref("adhan", "on") == "on"; row("تنبيه الأذان", if (on) "مفعّل" else "متوقف") { s.setPref("adhan", if (on) "off" else "on") } }
